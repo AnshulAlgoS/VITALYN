@@ -112,31 +112,34 @@ export default function Login() {
   };
 
   return (
-    <div ref={pageRef} className="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
+    <div
+      ref={pageRef}
+      className="relative z-10 min-h-screen flex flex-col bg-gradient-to-b from-[#3a3e61] via-[#3a3e61] to-[#f1ede2] text-[#f1ede2]"
+    >
       <Navbar />
       <div className="flex flex-1 items-center justify-center px-4 py-10 sm:py-16">
         <Card
           ref={cardRef}
-          className="w-full max-w-md bg-slate-900/80 border-slate-700 shadow-2xl sm:rounded-2xl"
+          className="w-full max-w-md bg-[#3a3e61]/80 border-[#f1ede2]/10 shadow-2xl sm:rounded-2xl backdrop-blur-xl"
         >
           <CardHeader>
-            <CardTitle className="text-2xl font-bold text-white">Sign in to Vitalyn</CardTitle>
-            <CardDescription className="text-slate-400">
+            <CardTitle className="text-2xl font-bold text-[#f1ede2]">Sign in to Vitalyn</CardTitle>
+            <CardDescription className="text-[#f1ede2]/70">
               Use the demo accounts to experience the patient and doctor journeys.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div
               ref={toggleRef}
-              className="mb-6 flex rounded-full bg-slate-800 p-1"
+              className="mb-6 flex rounded-full bg-[#2c304f] p-1"
             >
               <button
                 type="button"
                 onClick={() => handleRoleChange("patient")}
                 className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-colors ${
                   role === "patient"
-                    ? "bg-blue-500 text-white"
-                    : "text-slate-300 hover:text-white"
+                    ? "bg-[#f1ede2] text-[#3a3e61]"
+                    : "text-[#f1ede2]/70 hover:text-[#f1ede2]"
                 }`}
               >
                 Patient
@@ -146,8 +149,8 @@ export default function Login() {
                 onClick={() => handleRoleChange("doctor")}
                 className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-colors ${
                   role === "doctor"
-                    ? "bg-blue-500 text-white"
-                    : "text-slate-300 hover:text-white"
+                    ? "bg-[#f1ede2] text-[#3a3e61]"
+                    : "text-[#f1ede2]/70 hover:text-[#f1ede2]"
                 }`}
               >
                 Doctor
@@ -155,36 +158,36 @@ export default function Login() {
             </div>
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-200">Email</label>
+                <label className="text-sm font-medium text-[#f1ede2]">Email</label>
                 <Input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="bg-slate-900 border-slate-700 text-slate-50 placeholder:text-slate-500"
+                  className="bg-[#2c304f] border-[#f1ede2]/20 text-[#f1ede2] placeholder:text-[#f1ede2]/40"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-200">Password</label>
+                <label className="text-sm font-medium text-[#f1ede2]">Password</label>
                 <Input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="bg-slate-900 border-slate-700 text-slate-50 placeholder:text-slate-500"
+                  className="bg-[#2c304f] border-[#f1ede2]/20 text-[#f1ede2] placeholder:text-[#f1ede2]/40"
                 />
               </div>
               {error && (
-                <div className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+                <div className="rounded-md border border-rose-300/60 bg-rose-500/15 px-3 py-2 text-sm text-rose-50">
                   {error}
                 </div>
               )}
               <Button
                 type="submit"
-                className="w-full bg-blue-500 hover:bg-blue-400 text-white"
+                className="w-full bg-gradient-to-r from-[#f1ede2] to-[#e0d9c9] hover:from-[#ffffff] hover:to-[#f1ede2] text-[#3a3e61] font-semibold"
                 disabled={loading}
               >
                 {loading ? "Signing in..." : "Sign in"}
               </Button>
-              <p className="mt-2 text-xs text-slate-400">
+              <p className="mt-2 text-xs text-[#f1ede2]/70">
                 Demo credentials: patient123@gmail.com / patient123 or doctor123@gmail.com / doctor123
               </p>
             </form>

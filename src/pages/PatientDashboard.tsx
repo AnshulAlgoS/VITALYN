@@ -107,12 +107,76 @@ export default function PatientDashboard() {
   };
 
   if (result) {
+    const triage = result.triage || {};
+    const data = result.data || {};
+    const vitalsRisk = data.vitals_risk || {};
+    const faceAnalysis = data.face_fatigue_index || {};
+    const voiceAnalysis = data.voice_stress_score || {};
+    const overallRiskScore: number =
+      data.overall_risk_score ??
+      vitalsRisk.risk_score ??
+      0;
+
+    let riskLabel = "Low";
+    if (overallRiskScore >= 85) {
+      riskLabel = "High";
+    } else if (overallRiskScore >= 50) {
+      riskLabel = "Moderate";
+    }
+
+    const nextCheckIn =
+      triage.time_to_risk ||
+      (riskLabel === "High" ? "15 min" : riskLabel === "Moderate" ? "45 min" : "4 hrs");
+
+    const insights: string[] = [];
+
+    if (vitalsRisk.error) {
+      insights.push("Vitals model is currently unavailable; using safest baseline.");
+    } else if (typeof vitalsRisk.risk_score === "number") {
+      if (vitalsRisk.risk_score < 30) {
+        insights.push("Vitals are within expected range for this stage of recovery.");
+      } else if (vitalsRisk.risk_score < 70) {
+        insights.push("Vitals show early signs that may need closer observation.");
+      } else {
+        insights.push("Vitals indicate a high risk of clinical deterioration.");
+      }
+    }
+
+    if (faceAnalysis.error) {
+      insights.push("Facial analysis engine is unavailable; fatigue markers not captured.");
+    } else if (faceAnalysis.detected) {
+      const emotionText = faceAnalysis.emotion ? ` Emotion detected: ${faceAnalysis.emotion}.` : "";
+      if (faceAnalysis.fatigue_level >= 80) {
+        insights.push(`Facial analysis shows marked fatigue or distress.${emotionText}`);
+      } else if (faceAnalysis.fatigue_level >= 40) {
+        insights.push(`Facial analysis shows mild to moderate fatigue.${emotionText}`);
+      } else {
+        insights.push(`Facial analysis shows eyes open and alert.${emotionText}`);
+      }
+    }
+
+    if (voiceAnalysis.error) {
+      insights.push("Voice stress model is unavailable; vocal strain not evaluated.");
+    } else if (typeof voiceAnalysis.stress_score === "number") {
+      if (voiceAnalysis.stress_score >= 70) {
+        insights.push("Voice analysis indicates elevated stress in speech patterns.");
+      } else if (voiceAnalysis.stress_score >= 35) {
+        insights.push("Voice analysis shows mild stress markers; continue monitoring.");
+      } else {
+        insights.push("Voice analysis shows relaxed speech with low stress markers.");
+      }
+    }
+
+    if (!insights.length) {
+      insights.push("Models did not detect significant risk markers across vitals, face, or voice.");
+    }
+
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 font-sans selection:bg-blue-100 selection:text-blue-900">
+      <div className="relative z-10 min-h-screen bg-gradient-to-b from-[#3a3e61] via-[#3a3e61] to-[#f1ede2] font-sans selection:bg-[#f1ede2]/20 selection:text-[#3a3e61]">
         <Navbar />
         <div className="pt-28 pb-12 px-4 flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <Card className="w-full max-w-lg border-0 shadow-2xl bg-white/90 backdrop-blur-xl ring-1 ring-slate-200/50 animate-in fade-in zoom-in-95 duration-500">
-            <CardHeader className="text-center pb-8 border-b border-slate-100/50 pt-10">
+          <Card className="w-full max-w-lg border-0 shadow-2xl bg-[#fdfbf6]/95 backdrop-blur-xl ring-1 ring-[#e1d8c7]/60 animate-in fade-in zoom-in-95 duration-500">
+            <CardHeader className="text-center pb-8 border-b border-[#e1d8c7]/80 pt-10">
               <div className="mx-auto w-24 h-24 bg-gradient-to-tr from-green-100 to-emerald-50 rounded-full flex items-center justify-center mb-6 shadow-inner ring-8 ring-white/50">
                 <CheckCircle2 className="h-12 w-12 text-green-600 drop-shadow-sm" />
               </div>
@@ -124,12 +188,12 @@ export default function PatientDashboard() {
                 <div className="p-6 bg-gradient-to-br from-white to-slate-50 rounded-2xl text-center shadow-sm border border-slate-100 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
                   <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Overall Risk</p>
                   <p className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-500">
-                    Low
+                    {riskLabel}
                   </p>
                 </div>
                 <div className="p-6 bg-gradient-to-br from-white to-slate-50 rounded-2xl text-center shadow-sm border border-slate-100 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
                   <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Next Check-in</p>
-                  <p className="text-3xl font-black text-slate-700">4 hrs</p>
+                  <p className="text-3xl font-black text-slate-700">{nextCheckIn}</p>
                 </div>
               </div>
               
@@ -139,11 +203,7 @@ export default function PatientDashboard() {
                   <BrainCircuit className="h-5 w-5 text-blue-600" /> AI Insights
                 </p>
                 <ul className="space-y-3 relative z-10">
-                  {[
-                    "Vitals are stable within normal range.",
-                    "Facial analysis shows mild fatigue (expected).",
-                    "Voice stress levels are low."
-                  ].map((item, i) => (
+                  {insights.map((item, i) => (
                     <li key={i} className="flex items-start gap-3 text-slate-700 text-sm font-medium">
                       <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 shrink-0 shadow-sm shadow-blue-500/50" />
                       {item}
@@ -162,10 +222,10 @@ export default function PatientDashboard() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 font-sans selection:bg-blue-100 selection:text-blue-900">
-      <Navbar />
-      <div className="pt-28 pb-20 px-4">
+    return (
+      <div className="relative z-10 min-h-screen bg-gradient-to-b from-[#3a3e61] via-[#3a3e61] to-[#f1ede2] font-sans selection:bg-[#f1ede2]/20 selection:text-[#3a3e61]">
+        <Navbar />
+        <div className="pt-28 pb-20 px-4">
         <div className="max-w-3xl mx-auto space-y-10">
           <div className="text-center space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <Link to="/" className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-blue-600 mb-2 transition-colors px-4 py-2 rounded-full hover:bg-white/50 border border-transparent hover:border-slate-200">

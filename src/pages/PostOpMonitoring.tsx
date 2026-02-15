@@ -75,6 +75,8 @@ const patients = [
 export default function PostOpMonitoring() {
   const [loading, setLoading] = useState(true);
   const [selectedPatient, setSelectedPatient] = useState(patients[0]);
+  const [editorTitle, setEditorTitle] = useState("Rewrite discharge instructions");
+  const [editorLine, setEditorLine] = useState("Keep the risk framing tight but reassuring.");
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 800);
@@ -335,6 +337,88 @@ export default function PostOpMonitoring() {
             )}
           </div>
         </div>
+
+        {/* Interactive Text Edit-style UI */}
+        <Card className="mt-6 border-slate-200/70 bg-white/90 backdrop-blur-xl shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden">
+          <CardContent className="p-6 md:p-8">
+            <div className="grid gap-8 md:grid-cols-2 items-center">
+              <div className="space-y-4">
+                <p className="text-[11px] font-semibold tracking-[0.25em] text-slate-400 uppercase">
+                  Text Edit · Discharge Sheet
+                </p>
+                <h3 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900">
+                  Refine the copy,
+                  <br />
+                  keep the risk story.
+                </h3>
+                <p className="text-sm md:text-base text-slate-500 leading-relaxed">
+                  Use this panel to experiment with how you explain {`"`}time to
+                  risk{`"`} in discharge instructions. Changes here only affect this
+                  preview, perfect for playing with wording during the demo.
+                </p>
+                <Button
+                  variant="outline"
+                  className="rounded-full px-5 h-10 border-slate-300 text-slate-800 hover:bg-slate-900 hover:text-white transition-colors"
+                  onClick={() => {
+                    setEditorTitle("Rewrite discharge instructions");
+                    setEditorLine("Keep the risk framing tight but reassuring.");
+                  }}
+                >
+                  Reset copy
+                </Button>
+              </div>
+
+              <div className="relative">
+                <div className="h-56 md:h-64 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden">
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div className="mx-6 md:mx-10">
+                      <p className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase mb-2">
+                        Discharge snippet
+                      </p>
+                      <p className="text-lg md:text-xl font-semibold text-slate-900">
+                        {editorTitle}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-600 leading-relaxed max-w-md">
+                        {editorLine}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="absolute left-4 right-4 -bottom-6 md:left-auto md:right-6 md:w-72 md:-bottom-10 rounded-2xl bg-white border border-slate-200 shadow-2xl shadow-slate-900/10 p-4 space-y-3">
+                  <div className="text-xs font-semibold text-slate-500 flex items-center gap-2">
+                    <span className="h-5 w-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">
+                      T
+                    </span>
+                    Text Edit
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-[11px] font-medium text-slate-500 mb-1 block">
+                        Heading
+                      </label>
+                      <input
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs md:text-sm text-slate-900 shadow-inner shadow-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-900/80 focus:border-slate-900/80"
+                        value={editorTitle}
+                        onChange={(e) => setEditorTitle(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-medium text-slate-500 mb-1 block">
+                        Supporting line
+                      </label>
+                      <input
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs md:text-sm text-slate-900 shadow-inner shadow-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-900/80 focus:border-slate-900/80"
+                        value={editorLine}
+                        onChange={(e) => setEditorLine(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

@@ -221,7 +221,15 @@ async def analyze_multimodal(
         "status": "analyzed",
         "data": results,
         "recommendation": "Immediate attention required" if final_risk > 80 else "Continue monitoring",
-        "patient_id": patient_id
+        "patient_id": patient_id,
+        "triage": {
+            "urgency": urgency,
+            "ttr_level": ttr_level,
+            "time_to_risk": time_to_risk,
+            "time_minutes": time_minutes,
+            "condition": condition,
+            "risk_score": final_risk,
+        },
     }
 
 if __name__ == "__main__":
