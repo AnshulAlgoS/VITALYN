@@ -4,30 +4,39 @@ from pydantic import BaseModel
 from typing import Optional
 import uvicorn
 import json
+import os
+from datetime import datetime
+from dotenv import load_dotenv
+from pymongo import MongoClient
 
-# Import our ML modules
 from app.models.vitals import analyze_vitals
 from app.models.face import analyze_face
 from app.models.voice import analyze_voice
 from app.models.fusion import calculate_risk
 from app.models.reasoning import reasoning_agent
 
+load_dotenv()
+
+MONGODB_URI = os.getenv("MONGODB_URI")
+MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "vitalyn")
+
+mongo_client = MongoClient(MONGODB_URI) if MONGODB_URI else None
+mongo_db = mongo_client[MONGODB_DB_NAME] if mongo_client else None
+analyses_collection = mongo_db["analyses"] if mongo_db else None
+users_collection = mongo_db["users"] if mongo_db else None
+
 app = FastAPI(title="Vitalyn API", description="Multimodal Healthcare Intelligence Engine")
 
-# Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify the frontend URL
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-import uuid
-from datetime import datetime
-
-# In-memory database
 patients_db = []
+
 
 class VitalsInput(BaseModel):
     heart_rate: float
@@ -38,9 +47,58 @@ class VitalsInput(BaseModel):
     pain_level: int
     fatigue_level: int
 
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+    role: str
+
+
+DEMO_USERS = {
+    "patient": {
+        "email": "patient123@gmail.com",
+        "password": "patient123",
+    },
+    "doctor": {
+        "email": "doctor123@gmail.com",
+        "password": "doctor123",
+    },
+}
+
 @app.get("/")
 def health_check():
-    return {"status": "active", "system": "WAITLESS AI+ Core"}
+    return {"status": "active", "system": "Vitalyn Core"}
+
+
+@app.post("/auth/login")
+def login(payload: LoginRequest):
+    role_key = payload.role.lower()
+
+    if role_key not in DEMO_USERS:
+        return {"success": False, "error": "Invalid role"}
+
+    expected = DEMO_USERS[role_key]
+
+    if payload.email != expected["email"] or payload.password != expected["password"]:
+        return {"success": False, "error": "Invalid credentials"}
+
+    user_doc = {
+        "email": expected["email"],
+        "role": role_key,
+    }
+
+    if users_collection is not None:
+        users_collection.update_one(
+            {"email": expected["email"]},
+            {"$set": user_doc},
+            upsert=True,
+        )
+
+    return {
+        "success": True,
+        "email": expected["email"],
+        "role": role_key,
+    }
 
 @app.get("/patients")
 def get_patients():
@@ -70,7 +128,7 @@ async def analyze_multimodal(
     voice_sample: Optional[UploadFile] = File(None)
 ):
     """
-    The core WAITLESS AI+ endpoint.
+    The core Vitalyn endpoint.
     Accepts Vitals (JSON), Face Video (Blob), and Voice (Blob) simultaneously.
     """
     try:
@@ -119,7 +177,6 @@ async def analyze_multimodal(
         print(f"Reasoning Error: {e}")
         results["clinical_analysis"] = {"error": "Reasoning agent unavailable"}
     
-    # 6. Save to DB
     patient_id = f"P{len(patients_db) + 1:03d}"
     
     # Determine urgency and TTR based on risk
@@ -152,9 +209,12 @@ async def analyze_multimodal(
         "condition": condition,
         "waitTime": "Just now",
         "timestamp": datetime.now().isoformat(),
-        "details": results
+        "details": results,
     }
-    
+
+    if analyses_collection is not None:
+        analyses_collection.insert_one(patient_entry)
+
     patients_db.append(patient_entry)
 
     return {

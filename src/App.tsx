@@ -10,6 +10,7 @@ import Alerts from "./pages/Alerts";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import PatientDashboard from "./pages/PatientDashboard";
+import Login from "./pages/Login";
 
 const queryClient = new QueryClient();
 
@@ -21,6 +22,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/opd-queue" element={<OPDQueue />} />
           <Route path="/post-op" element={<PostOpMonitoring />} />
           <Route path="/alerts" element={<Alerts />} />

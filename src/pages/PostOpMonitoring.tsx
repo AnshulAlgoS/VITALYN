@@ -2,26 +2,23 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { RiskBadge } from "@/components/RiskBadge";
 import { TimeToRiskBadge } from "@/components/TimeToRiskBadge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   AreaChart,
-  Area,
-  ReferenceLine
+  Area
 } from "recharts";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  AlertTriangle, 
-  Activity, 
-  User, 
-  Clock, 
+import {
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  Activity,
+  User,
   ArrowRight,
   HeartPulse,
   Thermometer

@@ -24,3 +24,4 @@ dist-ssr
 *.sw?
 public/mimic-iii-clinical-database-demo-1.4/
 public/fer2013/
+.env

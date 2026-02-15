@@ -38,17 +38,17 @@ export default function Index() {
           </p>
           
           <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link to="/patient">
+            <Link to="/login">
               <Button size="lg" className="h-14 px-8 text-lg bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-500/20 transition-all hover:scale-105">
                 <User className="mr-2 h-5 w-5" />
-                Patient Portal
+                Get Started
                 <ArrowRight className="ml-2 h-4 w-4 opacity-70" />
               </Button>
             </Link>
-            <Link to="/opd-queue">
+            <Link to="/patient">
               <Button size="lg" variant="outline" className="h-14 px-8 text-lg border-slate-700 bg-slate-800/50 text-white hover:bg-slate-800 hover:text-blue-400 backdrop-blur-sm transition-all hover:scale-105">
                 <Stethoscope className="mr-2 h-5 w-5" />
-                Doctor Dashboard
+                View Patient Demo
               </Button>
             </Link>
           </div>
@@ -129,19 +129,21 @@ export default function Index() {
             <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
               Ready to transform healthcare?
               <br />
-              Start using WAITLESS AI+ today.
+              Start using Vitalyn today.
             </h2>
             <p className="mt-6 text-lg leading-8 text-blue-100">
               Join the network of forward-thinking hospitals and empower your patients with the future of recovery monitoring.
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6 lg:justify-start">
-              <Link to="/patient">
+              <Link to="/login">
                 <Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50">
                   Get Started
                 </Button>
               </Link>
-              <Link to="/about" className="text-sm font-semibold leading-6 text-white hover:text-blue-100">
-                Learn more <span aria-hidden="true">→</span>
+              <Link to="/patient">
+                <Button size="lg" variant="outline" className="border-slate-700 bg-slate-800/50 text-white hover:bg-slate-800 hover:text-blue-400 backdrop-blur-sm">
+                  View Patient Demo
+                </Button>
               </Link>
             </div>
           </div>
@@ -153,9 +155,9 @@ export default function Index() {
         <div className="mx-auto max-w-7xl px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2">
             <BrainCircuit className="h-6 w-6 text-blue-500" />
-            <span className="text-lg font-bold text-white">WAITLESS AI+</span>
+            <span className="text-lg font-bold text-white">Vitalyn</span>
           </div>
-          <p className="text-sm">&copy; 2024 WAITLESS AI+. Built for Healthcare Innovation.</p>
+          <p className="text-sm">&copy; 2024 Vitalyn. Built for Healthcare Innovation.</p>
         </div>
       </footer>
     </div>

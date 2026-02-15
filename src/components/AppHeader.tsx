@@ -13,7 +13,7 @@ export function AppHeader() {
         
         <div className="hidden sm:block">
           <h1 className="text-sm font-semibold text-slate-900">
-            WAITLESS AI
+            Vitalyn
             <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
               Time-to-Risk Intelligence
             </span>

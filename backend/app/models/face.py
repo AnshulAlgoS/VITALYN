@@ -29,13 +29,16 @@ class SimpleCNN(nn.Module):
 
 class FaceAnalyzer:
     def __init__(self):
-        self.mp_face_mesh = mp.solutions.face_mesh
-        self.face_mesh = self.mp_face_mesh.FaceMesh(
-            static_image_mode=False,
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5
-        )
+        self.face_mesh = None
+
+        if getattr(mp, "solutions", None) is not None:
+            self.mp_face_mesh = mp.solutions.face_mesh
+            self.face_mesh = self.mp_face_mesh.FaceMesh(
+                static_image_mode=False,
+                max_num_faces=1,
+                refine_landmarks=True,
+                min_detection_confidence=0.5
+            )
         
         # Indices for eyes
         self.LEFT_EYE = [362, 385, 387, 263, 373, 380]
@@ -71,6 +74,13 @@ class FaceAnalyzer:
         Analyzes a single video frame for signs of fatigue/pain.
         """
         try:
+            if self.face_mesh is None:
+                return {
+                    "detected": False,
+                    "fatigue_level": 0,
+                    "emotion": "Unknown",
+                    "risk_score": 0,
+                }
             nparr = np.frombuffer(frame_bytes, np.uint8)
             frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
             
