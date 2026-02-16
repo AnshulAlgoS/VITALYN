@@ -67,21 +67,24 @@ export function Navbar() {
   return (
     <nav
       ref={navRef}
-      className="fixed top-0 w-full z-50 bg-gradient-to-b from-[#3a3e61]/95 via-[#3a3e61]/85 to-transparent border-b border-white/5 backdrop-blur-xl"
+      className="fixed top-0 w-full z-50 bg-[#fdfbf6]/95 backdrop-blur-xl"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
-          <div ref={logoRef} className="flex items-center gap-3">
-            <div className="relative h-9 w-9 rounded-xl bg-[#f1ede2]/60 border border-white/40 flex items-center justify-center overflow-hidden">
-              <div className="absolute inset-[1px] rounded-lg bg-[#3a3e61]" />
-              <BrainCircuit className="relative h-5 w-5 text-[#f1ede2]" />
+        <div className="flex items-center justify-between py-4">
+          <div
+            ref={logoRef}
+            className="inline-flex items-stretch border-[2px] border-[#111322] bg-[#111322] shadow-[4px_4px_0_0_#111322]"
+          >
+            <div className="flex h-20 w-20 items-center justify-center bg-[#ffffff] border-r-[2px] border-[#111322] overflow-hidden">
+              <img
+                src="/vitalyn.png"
+                alt="Vitalyn logo"
+                className="h-20 w-20 object-contain transform scale-150"
+              />
             </div>
-            <div className="flex flex-col leading-tight">
-              <span className="text-lg sm:text-xl font-black tracking-tight text-[#f1ede2]">
+            <div className="flex items-center bg-[#3a3e61] px-6">
+              <span className="text-xs sm:text-sm font-black uppercase tracking-[0.32em] text-[#fdfbf6]">
                 Vitalyn
-              </span>
-              <span className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-[#f1ede2]/70">
-                Multimodal Care Engine
               </span>
             </div>
           </div>
@@ -92,25 +95,25 @@ export function Navbar() {
           >
             <Link
               to="/"
-              className="text-[#f1ede2]/70 hover:text-[#f1ede2] transition-colors"
+              className="text-[#3a3e61]/80 hover:text-[#111322] transition-colors uppercase tracking-[0.18em]"
             >
               Overview
             </Link>
             <Link
               to="/post-op"
-              className="text-[#f1ede2]/70 hover:text-[#f1ede2] transition-colors"
+              className="text-[#3a3e61]/80 hover:text-[#111322] transition-colors uppercase tracking-[0.18em]"
             >
               Post-op
             </Link>
             <Link
               to="/opd-queue"
-              className="text-[#f1ede2]/70 hover:text-[#f1ede2] transition-colors"
+              className="text-[#3a3e61]/80 hover:text-[#111322] transition-colors uppercase tracking-[0.18em]"
             >
               CareQueue
             </Link>
             <Link
               to="/alerts"
-              className="text-[#f1ede2]/70 hover:text-[#f1ede2] transition-colors"
+              className="text-[#3a3e61]/80 hover:text-[#111322] transition-colors uppercase tracking-[0.18em]"
             >
               Alerts
             </Link>
@@ -120,13 +123,13 @@ export function Navbar() {
             <Link to="/login">
               <Button
                 variant="ghost"
-                className="hidden sm:inline-flex text-[#f1ede2]/80 hover:text-[#3a3e61] hover:bg-[#f1ede2]/80 border border-transparent hover:border-[#f1ede2]/60"
+                className="hidden sm:inline-flex text-[#111322] bg-[#fdfbf6] border-[2px] border-[#111322] rounded-none px-4 py-2 shadow-[3px_3px_0_0_#111322] hover:bg-[#f1ede2] hover:text-[#111322]"
               >
                 Sign in
               </Button>
             </Link>
             <Link to="/login">
-              <Button className="bg-gradient-to-r from-[#f1ede2] to-[#e0d7c4] hover:from-[#ffffff] hover:to-[#f1ede2] text-[#3a3e61] shadow-lg shadow-[#3a3e61]/20 text-sm px-4">
+              <Button className="bg-[#f97373] hover:bg-[#ff8a8a] text-[#111322] border-[2px] border-[#111322] rounded-none px-5 py-2 text-sm font-semibold shadow-[3px_3px_0_0_#111322]">
                 Launch Demo
               </Button>
             </Link>

@@ -37,8 +37,12 @@ export function AppSidebar() {
     <Sidebar className="border-r border-slate-200 bg-slate-50/80 backdrop-blur-xl">
       <SidebarHeader className="px-5 py-5 border-b border-slate-200/50">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25 ring-1 ring-black/5">
-            <Activity className="h-6 w-6" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-white shadow-lg shadow-blue-500/15 ring-1 ring-slate-200 overflow-hidden">
+            <img
+              src="/vitalyn.png"
+              alt="Vitalyn logo"
+              className="h-9 w-9 object-contain"
+            />
           </div>
           <div>
             <p className="text-sm font-bold tracking-tight text-slate-900 leading-none">Vitalyn</p>

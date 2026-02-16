@@ -114,32 +114,32 @@ export default function Login() {
   return (
     <div
       ref={pageRef}
-      className="relative z-10 min-h-screen flex flex-col bg-gradient-to-b from-[#3a3e61] via-[#3a3e61] to-[#f1ede2] text-[#f1ede2]"
+      className="relative z-10 min-h-screen flex flex-col bg-[#fdfbf6] text-[#111322]"
     >
       <Navbar />
       <div className="flex flex-1 items-center justify-center px-4 py-10 sm:py-16">
         <Card
           ref={cardRef}
-          className="w-full max-w-md bg-[#3a3e61]/80 border-[#f1ede2]/10 shadow-2xl sm:rounded-2xl backdrop-blur-xl"
+          className="w-full max-w-md bg-[#ffffff] border-[#e1d8c7] shadow-xl sm:rounded-3xl"
         >
           <CardHeader>
-            <CardTitle className="text-2xl font-bold text-[#f1ede2]">Sign in to Vitalyn</CardTitle>
-            <CardDescription className="text-[#f1ede2]/70">
+            <CardTitle className="text-2xl font-bold text-[#111322]">Sign in to Vitalyn</CardTitle>
+            <CardDescription className="text-[#4b4f70]">
               Use the demo accounts to experience the patient and doctor journeys.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div
               ref={toggleRef}
-              className="mb-6 flex rounded-full bg-[#2c304f] p-1"
+              className="mb-6 flex rounded-full bg-[#f1ede2] p-1"
             >
               <button
                 type="button"
                 onClick={() => handleRoleChange("patient")}
                 className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-colors ${
                   role === "patient"
-                    ? "bg-[#f1ede2] text-[#3a3e61]"
-                    : "text-[#f1ede2]/70 hover:text-[#f1ede2]"
+                    ? "bg-[#3a3e61] text-[#f1ede2]"
+                    : "text-[#3a3e61]/80 hover:text-[#111322]"
                 }`}
               >
                 Patient
@@ -149,8 +149,8 @@ export default function Login() {
                 onClick={() => handleRoleChange("doctor")}
                 className={`flex-1 px-4 py-2 text-sm font-medium rounded-full transition-colors ${
                   role === "doctor"
-                    ? "bg-[#f1ede2] text-[#3a3e61]"
-                    : "text-[#f1ede2]/70 hover:text-[#f1ede2]"
+                    ? "bg-[#3a3e61] text-[#f1ede2]"
+                    : "text-[#3a3e61]/80 hover:text-[#111322]"
                 }`}
               >
                 Doctor
@@ -158,21 +158,21 @@ export default function Login() {
             </div>
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-[#f1ede2]">Email</label>
+                <label className="text-sm font-medium text-[#111322]">Email</label>
                 <Input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="bg-[#2c304f] border-[#f1ede2]/20 text-[#f1ede2] placeholder:text-[#f1ede2]/40"
+                  className="bg-[#fdfbf6] border-[#e1d8c7] text-[#111322] placeholder:text-[#9a9fb3]"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-[#f1ede2]">Password</label>
+                <label className="text-sm font-medium text-[#111322]">Password</label>
                 <Input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="bg-[#2c304f] border-[#f1ede2]/20 text-[#f1ede2] placeholder:text-[#f1ede2]/40"
+                  className="bg-[#fdfbf6] border-[#e1d8c7] text-[#111322] placeholder:text-[#9a9fb3]"
                 />
               </div>
               {error && (
@@ -182,12 +182,12 @@ export default function Login() {
               )}
               <Button
                 type="submit"
-                className="w-full bg-gradient-to-r from-[#f1ede2] to-[#e0d9c9] hover:from-[#ffffff] hover:to-[#f1ede2] text-[#3a3e61] font-semibold"
+                className="w-full bg-[#111322] hover:bg-[#1f2238] text-[#fdfbf6] font-semibold"
                 disabled={loading}
               >
                 {loading ? "Signing in..." : "Sign in"}
               </Button>
-              <p className="mt-2 text-xs text-[#f1ede2]/70">
+              <p className="mt-2 text-xs text-[#4b4f70]">
                 Demo credentials: patient123@gmail.com / patient123 or doctor123@gmail.com / doctor123
               </p>
             </form>

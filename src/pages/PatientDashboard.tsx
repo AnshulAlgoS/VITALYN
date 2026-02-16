@@ -9,11 +9,25 @@ import { VideoRecorder } from "@/components/patient/VideoRecorder";
 import { AudioRecorder } from "@/components/patient/AudioRecorder";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, Camera, Mic, CheckCircle2, AlertTriangle, Loader2, ArrowLeft, ArrowRight, ShieldCheck, HeartPulse, BrainCircuit } from "lucide-react";
+import { Activity, Camera, Mic, CheckCircle2, AlertTriangle, Loader2, ArrowLeft, ArrowRight, ShieldCheck, HeartPulse, BrainCircuit, Stethoscope, Bell, Pill, CalendarDays } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Navbar } from "@/components/Navbar";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useApiQuery } from "@/hooks/useApiQuery";
+
+type AnalysisRecord = {
+  mongo_id?: string;
+  id: string;
+  risk: number;
+  timeToRisk: string;
+  timeMinutes: number;
+  urgency: string;
+  ttrLevel: string;
+  condition: string;
+  waitTime: string;
+  timestamp: string;
+};
 
 const formSchema = z.object({
   heartRate: z.coerce.number().min(30).max(220),
@@ -25,13 +39,47 @@ const formSchema = z.object({
   fatigue: z.number().min(0).max(10),
 });
 
+const demoResult = {
+  status: "analyzed",
+  data: {
+    vitals_risk: {
+      risk_score: 58,
+    },
+    face_fatigue_index: {
+      detected: true,
+      fatigue_level: 42,
+      emotion: "Calm",
+    },
+    voice_stress_score: {
+      stress_score: 35,
+    },
+    overall_risk_score: 58,
+  },
+  recommendation: "Continue monitoring",
+  patient_id: "P001",
+  triage: {
+    urgency: "medium",
+    ttr_level: "watch",
+    time_to_risk: "45 min",
+    time_minutes: 45,
+    condition: "Observation Required",
+    risk_score: 58,
+  },
+};
+
 export default function PatientDashboard() {
   const [activeTab, setActiveTab] = useState("vitals");
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<any | null>(null);
+  const [result, setResult] = useState<any | null>(demoResult);
+  const [lastVitals, setLastVitals] = useState<VitalsData | null>(null);
   const { toast } = useToast();
+
+  const { data: history, isLoading: historyLoading } = useApiQuery<AnalysisRecord[]>(
+    ["patient-analyses"],
+    "/analyses?limit=6"
+  );
 
   const form = useForm<VitalsData>({
     resolver: zodResolver(formSchema),
@@ -58,6 +106,7 @@ export default function PatientDashboard() {
     setIsSubmitting(true);
     try {
       const vitals = form.getValues();
+      setLastVitals(vitals);
       const formData = new FormData();
       
       formData.append("vitals", JSON.stringify({
@@ -106,139 +155,357 @@ export default function PatientDashboard() {
     }
   };
 
-  if (result) {
-    const triage = result.triage || {};
-    const data = result.data || {};
-    const vitalsRisk = data.vitals_risk || {};
-    const faceAnalysis = data.face_fatigue_index || {};
-    const voiceAnalysis = data.voice_stress_score || {};
-    const overallRiskScore: number =
-      data.overall_risk_score ??
-      vitalsRisk.risk_score ??
-      0;
+  const triage = result?.triage || {};
+  const data = result?.data || {};
+  const vitalsRisk = data.vitals_risk || {};
+  const faceAnalysis = data.face_fatigue_index || {};
+  const voiceAnalysis = data.voice_stress_score || {};
+  const overallRiskScore: number =
+    data.overall_risk_score ??
+    vitalsRisk.risk_score ??
+    0;
 
-    let riskLabel = "Low";
-    if (overallRiskScore >= 85) {
-      riskLabel = "High";
-    } else if (overallRiskScore >= 50) {
-      riskLabel = "Moderate";
-    }
-
-    const nextCheckIn =
-      triage.time_to_risk ||
-      (riskLabel === "High" ? "15 min" : riskLabel === "Moderate" ? "45 min" : "4 hrs");
-
-    const insights: string[] = [];
-
-    if (vitalsRisk.error) {
-      insights.push("Vitals model is currently unavailable; using safest baseline.");
-    } else if (typeof vitalsRisk.risk_score === "number") {
-      if (vitalsRisk.risk_score < 30) {
-        insights.push("Vitals are within expected range for this stage of recovery.");
-      } else if (vitalsRisk.risk_score < 70) {
-        insights.push("Vitals show early signs that may need closer observation.");
-      } else {
-        insights.push("Vitals indicate a high risk of clinical deterioration.");
-      }
-    }
-
-    if (faceAnalysis.error) {
-      insights.push("Facial analysis engine is unavailable; fatigue markers not captured.");
-    } else if (faceAnalysis.detected) {
-      const emotionText = faceAnalysis.emotion ? ` Emotion detected: ${faceAnalysis.emotion}.` : "";
-      if (faceAnalysis.fatigue_level >= 80) {
-        insights.push(`Facial analysis shows marked fatigue or distress.${emotionText}`);
-      } else if (faceAnalysis.fatigue_level >= 40) {
-        insights.push(`Facial analysis shows mild to moderate fatigue.${emotionText}`);
-      } else {
-        insights.push(`Facial analysis shows eyes open and alert.${emotionText}`);
-      }
-    }
-
-    if (voiceAnalysis.error) {
-      insights.push("Voice stress model is unavailable; vocal strain not evaluated.");
-    } else if (typeof voiceAnalysis.stress_score === "number") {
-      if (voiceAnalysis.stress_score >= 70) {
-        insights.push("Voice analysis indicates elevated stress in speech patterns.");
-      } else if (voiceAnalysis.stress_score >= 35) {
-        insights.push("Voice analysis shows mild stress markers; continue monitoring.");
-      } else {
-        insights.push("Voice analysis shows relaxed speech with low stress markers.");
-      }
-    }
-
-    if (!insights.length) {
-      insights.push("Models did not detect significant risk markers across vitals, face, or voice.");
-    }
-
-    return (
-      <div className="relative z-10 min-h-screen bg-gradient-to-b from-[#3a3e61] via-[#3a3e61] to-[#f1ede2] font-sans selection:bg-[#f1ede2]/20 selection:text-[#3a3e61]">
-        <Navbar />
-        <div className="pt-28 pb-12 px-4 flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <Card className="w-full max-w-lg border-0 shadow-2xl bg-[#fdfbf6]/95 backdrop-blur-xl ring-1 ring-[#e1d8c7]/60 animate-in fade-in zoom-in-95 duration-500">
-            <CardHeader className="text-center pb-8 border-b border-[#e1d8c7]/80 pt-10">
-              <div className="mx-auto w-24 h-24 bg-gradient-to-tr from-green-100 to-emerald-50 rounded-full flex items-center justify-center mb-6 shadow-inner ring-8 ring-white/50">
-                <CheckCircle2 className="h-12 w-12 text-green-600 drop-shadow-sm" />
-              </div>
-              <CardTitle className="text-3xl font-extrabold text-slate-900 tracking-tight mb-2">Analysis Complete</CardTitle>
-              <CardDescription className="text-lg text-slate-500 font-medium">Your Daily Health Assessment</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-8 pt-8 px-8 pb-10">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="p-6 bg-gradient-to-br from-white to-slate-50 rounded-2xl text-center shadow-sm border border-slate-100 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Overall Risk</p>
-                  <p className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-500">
-                    {riskLabel}
-                  </p>
-                </div>
-                <div className="p-6 bg-gradient-to-br from-white to-slate-50 rounded-2xl text-center shadow-sm border border-slate-100 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Next Check-in</p>
-                  <p className="text-3xl font-black text-slate-700">{nextCheckIn}</p>
-                </div>
-              </div>
-              
-              <div className="space-y-5 bg-blue-50/40 p-6 rounded-2xl border border-blue-100/60 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-blue-100/50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110 duration-500" />
-                <p className="text-base font-bold text-blue-900 flex items-center gap-2 relative z-10">
-                  <BrainCircuit className="h-5 w-5 text-blue-600" /> AI Insights
-                </p>
-                <ul className="space-y-3 relative z-10">
-                  {insights.map((item, i) => (
-                    <li key={i} className="flex items-start gap-3 text-slate-700 text-sm font-medium">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 shrink-0 shadow-sm shadow-blue-500/50" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <Button className="w-full h-14 text-lg font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-xl shadow-slate-900/10 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]" onClick={() => setResult(null)}>
-                Start New Check-in
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
+  let riskLabel = "Low";
+  if (overallRiskScore >= 85) {
+    riskLabel = "High";
+  } else if (overallRiskScore >= 50) {
+    riskLabel = "Moderate";
   }
 
-    return (
+  const nextCheckIn =
+    triage.time_to_risk ||
+    (riskLabel === "High" ? "15 min" : riskLabel === "Moderate" ? "45 min" : "4 hrs");
+
+  const insights: { label: string; text: string; muted?: boolean }[] = [];
+
+  if (vitalsRisk.error) {
+    insights.push({
+      label: "System",
+      text: "Vitals engine is temporarily unavailable; using safest baseline in this demo.",
+      muted: true,
+    });
+  } else if (typeof vitalsRisk.risk_score === "number") {
+    if (vitalsRisk.risk_score < 30) {
+      insights.push({
+        label: "Vitals",
+        text: "Vitals are within the expected range for this stage of recovery.",
+      });
+    } else if (vitalsRisk.risk_score < 70) {
+      insights.push({
+        label: "Vitals",
+        text: "Vitals show early signs that may need closer observation.",
+      });
+    } else {
+      insights.push({
+        label: "Vitals",
+        text: "Vitals indicate a high risk of clinical deterioration.",
+      });
+    }
+  }
+
+  if (faceAnalysis.error) {
+    insights.push({
+      label: "System",
+      text: "Face analysis is offline in this build; only vitals are influencing the risk score.",
+      muted: true,
+    });
+  } else if (faceAnalysis.detected) {
+    const emotionText = faceAnalysis.emotion ? ` Emotion detected: ${faceAnalysis.emotion}.` : "";
+    if (faceAnalysis.fatigue_level >= 80) {
+      insights.push({
+        label: "Face",
+        text: `Facial analysis shows marked fatigue or distress.${emotionText}`,
+      });
+    } else if (faceAnalysis.fatigue_level >= 40) {
+      insights.push({
+        label: "Face",
+        text: `Facial analysis shows mild to moderate fatigue.${emotionText}`,
+      });
+    } else {
+      insights.push({
+        label: "Face",
+        text: `Facial analysis shows eyes open and alert.${emotionText}`,
+      });
+    }
+  }
+
+  if (voiceAnalysis.error) {
+    insights.push({
+      label: "System",
+      text: "Voice analysis is offline in this build; your recording is captured but not yet scored.",
+      muted: true,
+    });
+  } else if (typeof voiceAnalysis.stress_score === "number") {
+    if (voiceAnalysis.stress_score >= 70) {
+      insights.push({
+        label: "Voice",
+        text: "Voice analysis indicates elevated stress in speech patterns.",
+      });
+    } else if (voiceAnalysis.stress_score >= 35) {
+      insights.push({
+        label: "Voice",
+        text: "Voice analysis shows mild stress markers; continue monitoring.",
+      });
+    } else {
+      insights.push({
+        label: "Voice",
+        text: "Voice analysis shows relaxed speech with low stress markers.",
+      });
+    }
+  }
+
+  if (!insights.length) {
+    insights.push({
+      label: "System",
+      text: "Models did not detect significant risk markers across vitals, face, or voice.",
+      muted: true,
+    });
+  }
+
+  const vitalsSnapshot = lastVitals ?? form.getValues();
+  const medications = [
+    { name: "Apixaban", dose: "2.5 mg", schedule: "Twice daily" },
+    { name: "Paracetamol", dose: "500 mg", schedule: "If pain > 3/10" },
+    { name: "Pantoprazole", dose: "40 mg", schedule: "Once every morning" },
+  ];
+  const notifications = [
+    "Evening vitals check-in due in 2 hours.",
+    "Short video check scheduled with Dr. Chen at 7:00 PM.",
+    "Log any new pain, dizziness, or breathlessness in the app.",
+  ];
+
+  return (
       <div className="relative z-10 min-h-screen bg-gradient-to-b from-[#3a3e61] via-[#3a3e61] to-[#f1ede2] font-sans selection:bg-[#f1ede2]/20 selection:text-[#3a3e61]">
         <Navbar />
         <div className="pt-28 pb-20 px-4">
-        <div className="max-w-3xl mx-auto space-y-10">
-          <div className="text-center space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <Link to="/" className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-blue-600 mb-2 transition-colors px-4 py-2 rounded-full hover:bg-white/50 border border-transparent hover:border-slate-200">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Home
-            </Link>
-            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900 drop-shadow-sm">Daily Health Check-in</h1>
-            <p className="text-lg text-slate-500 max-w-2xl mx-auto leading-relaxed">
-              Complete the multimodal assessment for precise <span className="text-blue-600 font-bold relative inline-block">Time-to-Risk<span className="absolute bottom-0 left-0 w-full h-1 bg-blue-200/50 -z-10 rounded-full"></span></span> analysis.
-            </p>
+        <div className="max-w-5xl mx-auto space-y-10">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="space-y-3">
+              <Link to="/" className="inline-flex items-center text-sm font-medium text-[#f1ede2]/80 hover:text-white mb-1 transition-colors px-4 py-2 rounded-full hover:bg-white/10 border border-transparent hover:border-white/40 bg-white/5">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back to hero page
+              </Link>
+              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-[#fdfbf6] drop-shadow-sm">
+                Your recovery dashboard
+              </h1>
+              <p className="text-sm sm:text-base text-[#f1ede2]/85 max-w-xl">
+                See your latest check-in, medications, and alerts before starting a new Vitalyn scan.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 bg-[#fdfbf6]/10 border border-[#fdfbf6]/30 rounded-2xl px-4 py-3 text-xs text-[#f1ede2] shadow-lg shadow-black/20">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#fdfbf6]/90 text-[#3a3e61]">
+                <HeartPulse className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-semibold tracking-wide uppercase text-[11px]">Demo patient</p>
+                <p className="text-[11px] text-[#f1ede2]/80">Post-op day 3 • Appendectomy</p>
+              </div>
+            </div>
           </div>
 
-          {/* Progress Steps */}
-          <div className="relative flex justify-between max-w-lg mx-auto mb-12 animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100">
+          <div className="grid gap-6 lg:grid-cols-3 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-75">
+            <Card className="lg:col-span-2 border-0 shadow-xl shadow-[#111322]/25 bg-[#fdfbf6]/95 backdrop-blur-xl rounded-3xl">
+              <CardHeader className="flex flex-row items-center justify-between pb-4">
+                <div>
+                  <CardTitle className="text-lg sm:text-xl font-bold text-[#111322]">
+                    Latest vitals check-in
+                  </CardTitle>
+                  <CardDescription className="text-sm text-[#4b4f70]">
+                    Logged from your latest Vitalyn check-in • Patient ID P001
+                  </CardDescription>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                  <ShieldCheck className="h-4 w-4" />
+                  {riskLabel} risk
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6 pb-6">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="rounded-2xl bg-[#f1ede2] px-4 py-3">
+                    <p className="text-[11px] font-semibold tracking-[0.16em] uppercase text-[#7a7e9a]">Heart rate</p>
+                    <p className="mt-1 text-2xl font-black text-[#111322]">{vitalsSnapshot.heartRate} bpm</p>
+                    <p className="mt-1 text-xs text-[#4b4f70]">Target 65–90</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#f1ede2] px-4 py-3">
+                    <p className="text-[11px] font-semibold tracking-[0.16em] uppercase text-[#7a7e9a]">Blood pressure</p>
+                    <p className="mt-1 text-2xl font-black text-[#111322]">
+                      {vitalsSnapshot.systolic}/{vitalsSnapshot.diastolic}
+                    </p>
+                    <p className="mt-1 text-xs text-[#4b4f70]">mmHg</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#f1ede2] px-4 py-3">
+                    <p className="text-[11px] font-semibold tracking-[0.16em] uppercase text-[#7a7e9a]">SpO₂</p>
+                    <p className="mt-1 text-2xl font-black text-[#111322]">{vitalsSnapshot.spo2}%</p>
+                    <p className="mt-1 text-xs text-[#4b4f70]">Above 94% preferred</p>
+                  </div>
+                  <div className="rounded-2xl bg-[#f1ede2] px-4 py-3">
+                    <p className="text-[11px] font-semibold tracking-[0.16em] uppercase text-[#7a7e9a]">Temperature</p>
+                    <p className="mt-1 text-2xl font-black text-[#111322]">{vitalsSnapshot.temp.toFixed(1)} °C</p>
+                    <p className="mt-1 text-xs text-[#4b4f70]">Fever if ≥ 38.0</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-[#e1d8c7] bg-white px-4 py-4 flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#3a3e61]/10 text-[#3a3e61]">
+                      <Stethoscope className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold tracking-[0.16em] uppercase text-[#7a7e9a]">Assigned doctor</p>
+                      <p className="text-sm font-semibold text-[#111322]">Dr. Sarah Chen</p>
+                      <p className="text-xs text-[#4b4f70]">Post-op rounds twice daily</p>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-[#e1d8c7] bg-white px-4 py-4 flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#3a3e61]/10 text-[#3a3e61]">
+                      <CalendarDays className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold tracking-[0.16em] uppercase text-[#7a7e9a]">Procedure</p>
+                      <p className="text-sm font-semibold text-[#111322]">Laparoscopic appendectomy</p>
+                      <p className="text-xs text-[#4b4f70]">Post-op day 3 • Ward A3</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-[#e1d8c7] bg-white px-4 py-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Pill className="h-4 w-4 text-[#3a3e61]" />
+                      <p className="text-xs font-semibold tracking-[0.16em] uppercase text-[#7a7e9a]">
+                        Active medications
+                      </p>
+                    </div>
+                    <ul className="space-y-2 text-xs text-[#4b4f70]">
+                      {medications.map((m) => (
+                        <li key={m.name} className="flex items-center justify-between">
+                          <span className="font-medium text-[#111322]">{m.name}</span>
+                          <span className="text-[11px]">{m.dose} • {m.schedule}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-2xl border border-[#e1d8c7] bg-white px-4 py-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Bell className="h-4 w-4 text-[#3a3e61]" />
+                      <p className="text-xs font-semibold tracking-[0.16em] uppercase text-[#7a7e9a]">
+                        Alerts and notifications
+                      </p>
+                    </div>
+                    <ul className="space-y-2 text-xs text-[#4b4f70]">
+                      {notifications.map((n, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 text-[#f97373]" />
+                          <span>{n}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-4">
+              <Card className="border-0 shadow-xl shadow-black/20 bg-[#fdfbf6]/95 text-[#111322] rounded-3xl">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold tracking-[0.2em] uppercase text-[#3a3e61]">
+                    Check-in history
+                  </CardTitle>
+                  <CardDescription className="text-xs text-[#4b4f70]">
+                    Recent multimodal analyses stored in the hospital record.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2 text-xs">
+                  {(historyLoading ? Array.from({ length: 3 }) : history ?? []).map((item, i) => {
+                    if (!history && historyLoading) {
+                      return (
+                        <div key={i} className="h-10 rounded-2xl bg-[#f1ede2]" />
+                      );
+                    }
+                    const record = (history ?? [])[i] as AnalysisRecord;
+                    if (!record) return null;
+                    const date = new Date(record.timestamp);
+                    const timeLabel = isNaN(date.getTime())
+                      ? record.timestamp
+                      : date.toLocaleString(undefined, { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" });
+                    return (
+                      <div
+                        key={record.mongo_id ?? `${record.id}-${i}`}
+                        className="rounded-2xl border border-[#e1d8c7] bg-[#fdfbf6] px-3 py-2.5 flex items-center justify-between gap-3"
+                      >
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-semibold tracking-[0.18em] uppercase text-[#7a7e9a]">
+                            {record.id} • {record.condition}
+                          </span>
+                          <span className="text-[11px] text-[#4b4f70]">
+                            {timeLabel}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="inline-flex items-center rounded-full border border-[#111322] px-2 py-0.5 text-[11px] font-semibold">
+                            {Math.round(record.risk)}% risk
+                          </span>
+                          <span className="inline-flex items-center rounded-full bg-[#3a3e61] px-2 py-0.5 text-[10px] font-semibold text-[#f1ede2]">
+                            {record.timeToRisk} to next risk window
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!historyLoading && (!history || history.length === 0) && (
+                    <p className="text-[11px] text-[#7a7e9a]">
+                      Your future multimodal check-ins will appear here automatically.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-xl shadow-black/20 bg-[#111322]/90 text-[#fdfbf6] rounded-3xl">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-sm font-semibold tracking-[0.2em] uppercase text-[#f1ede2]/80">
+                    AI summary
+                  </CardTitle>
+                  <CardDescription className="text-xs text-[#f1ede2]/80">
+                    What Vitalyn sees from your vitals, face and voice.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-xs leading-relaxed text-[#f1ede2]/90">
+                  {insights.slice(0, 3).map((item, i) => (
+                    <div
+                      key={i}
+                      className={`rounded-2xl border px-3 py-2 flex gap-3 items-start ${
+                        item.muted
+                          ? "border-[#2a2d4f]/60 bg-[#181a33]/80"
+                          : "border-[#2a2d4f] bg-[#181a33]"
+                      }`}
+                    >
+                      <div
+                        className={`mt-1 h-1.5 w-1.5 rounded-full ${
+                          item.muted ? "bg-[#9ca3c7]" : "bg-[#f97373]"
+                        }`}
+                      />
+                      <div>
+                        <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-[#c7cbe6] mb-1">
+                          {item.label} {item.label === "System" ? "note" : "insight"}
+                        </p>
+                        <p className="text-[11px] text-[#fdfbf6]">{item.text}</p>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="mt-3 text-[11px] text-[#f1ede2]/70">
+                    This summary is for guidance only. Your doctor always makes the final call.
+                  </p>
+                </CardContent>
+              </Card>
+              <Button
+                className="w-full h-12 text-sm font-semibold bg-[#fdfbf6] text-[#111322] border border-[#e1d8c7] rounded-2xl shadow-lg shadow-black/20 hover:bg-[#f1ede2]"
+                onClick={() => setResult(null)}
+              >
+                Start new multimodal check-in
+              </Button>
+            </div>
+          </div>
+
+          <div className="relative flex justify-between max-w-lg mx-auto mb-12 mt-6 animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100">
             <div className="absolute top-1/2 left-0 w-full h-1.5 bg-slate-100 -z-10 rounded-full" />
             <div 
               className="absolute top-1/2 left-0 h-1.5 bg-gradient-to-r from-blue-600 to-indigo-500 -z-10 rounded-full transition-all duration-700 ease-out"

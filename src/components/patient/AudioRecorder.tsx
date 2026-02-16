@@ -54,6 +54,16 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
     setAudioBlob(null);
   };
 
+  const promptTitle = audioBlob
+    ? "Voice sample saved"
+    : isRecording
+    ? "Recording in progress"
+    : "Reading prompt";
+
+  const promptText = audioBlob
+    ? "You can redo the recording or submit your check-in."
+    : "\"The quick brown fox jumps over the lazy dog.\"";
+
   return (
     <Card className="w-full max-w-lg mx-auto border-0 shadow-none bg-transparent">
       <CardContent className="p-0 flex flex-col items-center gap-8">
@@ -97,9 +107,11 @@ export function AudioRecorder({ onRecordingComplete }: AudioRecorderProps) {
         </div>
         
         <div className="bg-white/60 backdrop-blur p-4 rounded-xl border border-slate-200/60 text-center max-w-sm">
-           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Reading Prompt</p>
+           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+             {promptTitle}
+           </p>
            <p className="text-lg font-medium text-slate-700 leading-relaxed font-serif italic">
-            "The quick brown fox jumps over the lazy dog."
+            {promptText}
           </p>
         </div>
       </CardContent>

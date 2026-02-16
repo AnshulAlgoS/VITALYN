@@ -9,3 +9,4 @@ librosa
 python-multipart
 joblib
 soundfile
+torch

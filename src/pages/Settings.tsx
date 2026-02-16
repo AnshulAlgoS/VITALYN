@@ -13,10 +13,14 @@ export default function SettingsPage() {
       <div className="max-w-5xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">System Configuration</h2>
-            <p className="text-sm text-slate-500">Manage your workspace preferences and system parameters</p>
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#fdfbf6]">
+              System Configuration
+            </h2>
+            <p className="text-sm sm:text-base text-[#f1ede2]/90">
+              Manage your workspace preferences and system parameters
+            </p>
           </div>
-          <Button className="bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-900/20">
+          <Button className="bg-[#fdfbf6] text-[#111322] hover:bg-[#f1ede2] border border-[#111322]/40 shadow-[0_10px_30px_rgba(6,10,40,0.35)] rounded-full px-5">
             <Save className="mr-2 h-4 w-4" /> Save Changes
           </Button>
         </div>

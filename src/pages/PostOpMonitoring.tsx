@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { useSearchParams } from "react-router-dom";
 
 const recoveryData = [
   { day: "Day 1", risk: 82, vitals: 45 },
@@ -73,8 +74,13 @@ const patients = [
 ];
 
 export default function PostOpMonitoring() {
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [selectedPatient, setSelectedPatient] = useState(patients[0]);
+  const initialId = searchParams.get("patient");
+  const initialPatient = initialId
+    ? patients.find((p) => p.id === initialId) ?? patients[0]
+    : patients[0];
+  const [selectedPatient, setSelectedPatient] = useState(initialPatient);
   const [editorTitle, setEditorTitle] = useState("Rewrite discharge instructions");
   const [editorLine, setEditorLine] = useState("Keep the risk framing tight but reassuring.");
 

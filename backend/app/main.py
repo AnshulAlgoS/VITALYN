@@ -109,6 +109,25 @@ def get_patients():
     sorted_patients = sorted(patients_db, key=lambda x: x['risk'], reverse=True)
     return sorted_patients
 
+
+@app.get("/analyses")
+def list_analyses(limit: int = 10):
+    items = []
+
+    if analyses_collection is not None:
+        cursor = analyses_collection.find().sort("timestamp", -1).limit(limit)
+        for doc in cursor:
+            doc_copy = dict(doc)
+            doc_copy["mongo_id"] = str(doc_copy.pop("_id", ""))
+            ts = doc_copy.get("timestamp")
+            if isinstance(ts, datetime):
+                doc_copy["timestamp"] = ts.isoformat()
+            items.append(doc_copy)
+    else:
+        items = sorted(patients_db, key=lambda x: x["timestamp"], reverse=True)[:limit]
+
+    return items
+
 @app.post("/analyze/vitals")
 def analyze_patient_vitals(data: VitalsInput):
     """

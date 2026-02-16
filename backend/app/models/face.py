@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import os
+import tempfile
 from torchvision import transforms
 
 # Define CNN Model Structure (Must match training)
@@ -168,5 +169,68 @@ class FaceAnalyzer:
 # Singleton instance
 face_analyzer = FaceAnalyzer()
 
-def analyze_face(image_bytes):
-    return face_analyzer.analyze_frame(image_bytes)
+def analyze_face(image_or_video_bytes):
+    # First, try to interpret the bytes as a single image frame
+    result = face_analyzer.analyze_frame(image_or_video_bytes)
+    if isinstance(result, dict) and result.get("error") == "Invalid image data":
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
+                tmp.write(image_or_video_bytes)
+                tmp_path = tmp.name
+
+            cap = cv2.VideoCapture(tmp_path)
+            if not cap.isOpened():
+                return {
+                    "detected": False,
+                    "fatigue_level": 0,
+                    "emotion": "Unknown",
+                    "risk_score": 0,
+                }
+
+            frame_results = []
+            frames_checked = 0
+            max_frames = 12
+
+            while frames_checked < max_frames:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                ok, buf = cv2.imencode(".jpg", frame)
+                if not ok:
+                    break
+                partial = face_analyzer.analyze_frame(buf.tobytes())
+                if isinstance(partial, dict) and not partial.get("error") and partial.get("detected"):
+                    frame_results.append(partial)
+                frames_checked += 1
+
+            cap.release()
+
+            if not frame_results:
+                return {
+                    "detected": False,
+                    "fatigue_level": 0,
+                    "emotion": "Unknown",
+                    "risk_score": 0,
+                }
+
+            avg_fatigue = sum(r.get("fatigue_level", 0) for r in frame_results) / len(frame_results)
+            max_risk = max(r.get("risk_score", 0) for r in frame_results)
+            emotion = frame_results[0].get("emotion", "Unknown")
+
+            return {
+                "detected": True,
+                "fatigue_level": round(avg_fatigue),
+                "emotion": emotion,
+                "risk_score": max_risk,
+            }
+        except Exception as e:
+            return {"error": str(e), "fatigue_level": 0, "emotion": "Unknown", "risk_score": 0}
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+
+    return result
