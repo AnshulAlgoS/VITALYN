@@ -5,7 +5,6 @@ import torch
 import torch.nn as nn
 import os
 import tempfile
-from torchvision import transforms
 
 # Define CNN Model Structure (Must match training)
 class SimpleCNN(nn.Module):

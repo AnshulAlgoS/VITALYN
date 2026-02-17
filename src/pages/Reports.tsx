@@ -5,7 +5,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { RiskBadge } from "@/components/RiskBadge";
 import { TimeToRiskBadge } from "@/components/TimeToRiskBadge";
-import { useApiQuery } from "@/hooks/useApiQuery";
+import { API_BASE, useApiQuery } from "@/hooks/useApiQuery";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useMemo, useState } from "react";
 import {
   Activity,
@@ -38,6 +40,16 @@ interface AnalysisEntry {
   details?: {
     clinical_analysis?: ClinicalAnalysis;
   };
+}
+
+interface PatientDocument {
+  id: string;
+  patient_id: string;
+  filename: string;
+  uploaded_at?: string;
+  note?: string;
+  size_bytes?: number;
+  content_type?: string;
 }
 
 export default function Reports() {
@@ -98,6 +110,60 @@ export default function Reports() {
     }
     return selectedRow.latest;
   }, [selectedRow]);
+
+  const {
+    data: documents,
+    isLoading: documentsLoading,
+    refetch: refetchDocuments,
+  } = useApiQuery<PatientDocument[]>(
+    ["patient-documents", selectedRow?.patientId ?? ""],
+    selectedRow ? `/patient-documents?patient_id=${selectedRow.patientId}` : "/patient-documents",
+    {
+      enabled: !!selectedRow,
+    }
+  );
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [note, setNote] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const handleUpload = async () => {
+    if (!selectedRow || !selectedRow.patientId || !selectedFile) {
+      setUploadError("Select a patient and a file first.");
+      return;
+    }
+
+    setUploadError(null);
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("patient_id", selectedRow.patientId);
+      formData.append("file", selectedFile);
+      if (note.trim()) {
+        formData.append("note", note.trim());
+      }
+
+      const res = await fetch(`${API_BASE}/patient-documents`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error(`Upload failed with status ${res.status}`);
+      }
+
+      setSelectedFile(null);
+      setNote("");
+      await refetchDocuments();
+    } catch (error) {
+      console.error(error);
+      setUploadError("Could not upload report. Try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -265,106 +331,207 @@ export default function Reports() {
             </div>
 
             {selectedRow && (
-              <Card className="mt-6 border-slate-200 shadow-lg">
-                <CardHeader className="border-b border-slate-100 pb-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <CardTitle className="text-sm font-semibold tracking-[0.18em] uppercase text-slate-600 flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-slate-500" />
-                        Clinic report
-                      </CardTitle>
-                      <CardDescription className="text-xs text-slate-500 mt-1">
-                        Digital health record generated from the latest multimodal analysis.
-                      </CardDescription>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                        Patient {selectedRow.patientId}
-                      </p>
-                      <p className="text-[11px] text-slate-500">
-                        {selectedReport?.timestamp
-                          ? new Date(selectedReport.timestamp).toLocaleString()
-                          : "Just now"}
-                      </p>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-5 space-y-4">
-                  {selectedReport?.details?.clinical_analysis ? (
-                    <>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
-                            Subjective
-                          </p>
-                          <p className="text-sm text-slate-800 leading-relaxed">
-                            {selectedReport.details.clinical_analysis.subjective}
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
-                            Objective
-                          </p>
-                          <p className="text-sm text-slate-800 leading-relaxed">
-                            {selectedReport.details.clinical_analysis.objective}
-                          </p>
-                        </div>
+              <div className="mt-6 grid gap-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)]">
+                <Card className="border-slate-200 shadow-lg">
+                  <CardHeader className="border-b border-slate-100 pb-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-sm font-semibold tracking-[0.18em] uppercase text-slate-600 flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-slate-500" />
+                          Clinic report
+                        </CardTitle>
+                        <CardDescription className="text-xs text-slate-500 mt-1">
+                          Digital health record generated from the latest multimodal analysis.
+                        </CardDescription>
                       </div>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
-                            Assessment
-                          </p>
-                          <p className="text-sm text-slate-800 leading-relaxed">
-                            {selectedReport.details.clinical_analysis.assessment}
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
-                            Plan
-                          </p>
-                          <p className="text-sm text-slate-800 leading-relaxed">
-                            {selectedReport.details.clinical_analysis.plan}
-                          </p>
-                        </div>
+                      <div className="text-right">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Patient {selectedRow.patientId}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {selectedReport?.timestamp
+                            ? new Date(selectedReport.timestamp).toLocaleString()
+                            : "Just now"}
+                        </p>
                       </div>
-                      <div className="grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)] items-start">
-                        <div className="space-y-2">
-                          <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
-                            Alert level
-                          </p>
-                          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-                            <Activity className="h-3 w-3 text-slate-500" />
-                            {selectedReport.details.clinical_analysis.alert_level ??
-                              "Not specified"}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-5 space-y-4">
+                    {selectedReport?.details?.clinical_analysis ? (
+                      <>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
+                              Subjective
+                            </p>
+                            <p className="text-sm text-slate-800 leading-relaxed">
+                              {selectedReport.details.clinical_analysis.subjective}
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
+                              Objective
+                            </p>
+                            <p className="text-sm text-slate-800 leading-relaxed">
+                              {selectedReport.details.clinical_analysis.objective}
+                            </p>
                           </div>
                         </div>
-                        <div className="space-y-2">
-                          <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
-                            Reasoning
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
+                              Assessment
+                            </p>
+                            <p className="text-sm text-slate-800 leading-relaxed">
+                              {selectedReport.details.clinical_analysis.assessment}
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
+                              Plan
+                            </p>
+                            <p className="text-sm text-slate-800 leading-relaxed">
+                              {selectedReport.details.clinical_analysis.plan}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)] items-start">
+                          <div className="space-y-2">
+                            <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
+                              Alert level
+                            </p>
+                            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                              <Activity className="h-3 w-3 text-slate-500" />
+                              {selectedReport.details.clinical_analysis.alert_level ??
+                                "Not specified"}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
+                              Reasoning
+                            </p>
+                            <p className="text-sm text-slate-800 leading-relaxed">
+                              {selectedReport.details.clinical_analysis.reasoning}
+                            </p>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">
+                            No structured report available yet.
                           </p>
-                          <p className="text-sm text-slate-800 leading-relaxed">
-                            {selectedReport.details.clinical_analysis.reasoning}
+                          <p className="text-xs text-slate-600">
+                            Once the reasoning engine generates a SOAP note for this patient,
+                            the full report will appear here automatically.
                           </p>
                         </div>
                       </div>
-                    </>
-                  ) : (
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">
-                          No structured report available yet.
-                        </p>
-                        <p className="text-xs text-slate-600">
-                          Once the reasoning engine generates a SOAP note for this patient,
-                          the full report will appear here automatically.
-                        </p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="border-slate-200 shadow-lg">
+                  <CardHeader className="border-b border-slate-100 pb-4">
+                    <CardTitle className="text-sm font-semibold tracking-[0.18em] uppercase text-slate-600">
+                      Clinic records
+                    </CardTitle>
+                    <CardDescription className="text-xs text-slate-500 mt-1">
+                      Upload and manage local clinic reports for this patient.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-5 space-y-4">
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
+                        Upload report
+                      </p>
+                      <Input
+                        type="file"
+                        onChange={(event) => {
+                          const files = event.target.files;
+                          setSelectedFile(files && files[0] ? files[0] : null);
+                        }}
+                      />
+                      <Textarea
+                        placeholder="Optional note (e.g. CT findings, lab summary)"
+                        value={note}
+                        onChange={(event) => setNote(event.target.value)}
+                        rows={3}
+                        className="mt-2"
+                      />
+                      {uploadError && (
+                        <p className="text-[11px] text-red-600 mt-1">{uploadError}</p>
+                      )}
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          onClick={handleUpload}
+                          disabled={uploading || !selectedFile}
+                          className="text-xs"
+                        >
+                          {uploading ? "Uploading..." : "Upload report"}
+                        </Button>
                       </div>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-semibold tracking-[0.18em] uppercase text-slate-500">
+                        Existing records
+                      </p>
+                      {documentsLoading ? (
+                        <div className="space-y-2">
+                          <Skeleton className="h-3 w-full" />
+                          <Skeleton className="h-3 w-3/4" />
+                        </div>
+                      ) : !documents || documents.length === 0 ? (
+                        <p className="text-xs text-slate-500">
+                          No uploaded reports yet for this patient.
+                        </p>
+                      ) : (
+                        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                          {documents.map((doc) => (
+                            <div
+                              key={doc.id}
+                              className="flex items-start justify-between gap-3 rounded-md border border-slate-100 bg-slate-50 px-3 py-2"
+                            >
+                              <div className="space-y-1">
+                                <p className="text-xs font-semibold text-slate-800">
+                                  {doc.filename}
+                                </p>
+                                {doc.note && (
+                                  <p className="text-[11px] text-slate-600 line-clamp-2">
+                                    {doc.note}
+                                  </p>
+                                )}
+                                <p className="text-[11px] text-slate-500">
+                                  {doc.uploaded_at
+                                    ? new Date(doc.uploaded_at).toLocaleString()
+                                    : ""}
+                                  {doc.size_bytes
+                                    ? ` • ${(doc.size_bytes / 1024).toFixed(1)} KB`
+                                    : ""}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={`${API_BASE}/patient-documents/${doc.id}/file`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[11px] font-semibold text-blue-600 hover:underline"
+                                >
+                                  View
+                                </a>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             )}
           </>
         )}

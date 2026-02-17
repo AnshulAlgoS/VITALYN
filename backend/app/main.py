@@ -1,11 +1,13 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
 import uvicorn
 import json
 import os
 from datetime import datetime
+import uuid
 try:
     from dotenv import load_dotenv
 except ImportError:
@@ -28,6 +30,7 @@ mongo_client = MongoClient(MONGODB_URI) if MONGODB_URI else None
 mongo_db = mongo_client[MONGODB_DB_NAME] if mongo_client is not None else None
 analyses_collection = mongo_db["analyses"] if mongo_db is not None else None
 users_collection = mongo_db["users"] if mongo_db is not None else None
+documents_collection = mongo_db["documents"] if mongo_db is not None else None
 
 app = FastAPI(title="Vitalyn API", description="Multimodal Healthcare Intelligence Engine")
 
@@ -41,6 +44,7 @@ app.add_middleware(
 
 patients_db = []
 appointments_db = []
+documents_db = []
 
 
 class VitalsInput(BaseModel):
@@ -62,6 +66,17 @@ class LoginRequest(BaseModel):
     email: str
     password: str
     role: str
+
+
+class PatientDocument(BaseModel):
+    id: str
+    patient_id: str
+    filename: str
+    stored_path: str
+    content_type: Optional[str] = None
+    uploaded_at: str
+    note: Optional[str] = None
+    size_bytes: Optional[int] = None
 
 
 DEMO_USERS = {
@@ -308,6 +323,96 @@ async def analyze_multimodal(
             "risk_score": final_risk,
         },
     }
+
+
+@app.post("/patient-documents")
+async def upload_patient_document(
+    patient_id: str = Form(...),
+    note: Optional[str] = Form(None),
+    file: UploadFile = File(...),
+):
+    upload_root = os.path.join(os.path.dirname(__file__), "uploads")
+    os.makedirs(upload_root, exist_ok=True)
+
+    doc_id = str(uuid.uuid4())
+    safe_name = file.filename or "document"
+    stored_name = f"{doc_id}_{safe_name}"
+    stored_path = os.path.join(upload_root, stored_name)
+
+    content = await file.read()
+
+    with open(stored_path, "wb") as f:
+        f.write(content)
+
+    doc = PatientDocument(
+        id=doc_id,
+        patient_id=patient_id,
+        filename=safe_name,
+        stored_path=stored_path,
+        content_type=file.content_type,
+        uploaded_at=datetime.now().isoformat(),
+        note=note,
+        size_bytes=len(content),
+    ).model_dump()
+
+    documents_db.append(doc)
+
+    if documents_collection is not None:
+        documents_collection.insert_one(doc)
+
+    return doc
+
+
+@app.get("/patient-documents")
+def list_patient_documents(patient_id: Optional[str] = None):
+    docs = []
+
+    if documents_collection is not None:
+        query = {}
+        if patient_id:
+            query["patient_id"] = patient_id
+        cursor = documents_collection.find(query).sort("uploaded_at", -1)
+        for doc in cursor:
+            doc_copy = dict(doc)
+            doc_copy.pop("_id", None)
+            docs.append(doc_copy)
+    else:
+        if patient_id:
+            docs = [d for d in documents_db if d.get("patient_id") == patient_id]
+        else:
+            docs = list(documents_db)
+
+    return docs
+
+
+@app.get("/patient-documents/{doc_id}/file")
+def download_patient_document(doc_id: str):
+    doc = None
+
+    if documents_collection is not None:
+        found = documents_collection.find_one({"id": doc_id})
+        if found:
+            found.pop("_id", None)
+            doc = found
+    else:
+        for item in documents_db:
+            if item.get("id") == doc_id:
+                doc = item
+                break
+
+    if not doc:
+        return {"error": "Document not found"}
+
+    path = doc.get("stored_path")
+
+    if not path or not os.path.exists(path):
+        return {"error": "File not available"}
+
+    return FileResponse(
+        path,
+        filename=doc.get("filename") or "document",
+        media_type=doc.get("content_type") or "application/octet-stream",
+    )
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
