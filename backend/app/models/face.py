@@ -38,12 +38,13 @@ class FaceAnalyzer:
                 static_image_mode=False,
                 max_num_faces=1,
                 refine_landmarks=True,
-                min_detection_confidence=0.5
+                min_detection_confidence=0.3
             )
         
-        # Indices for eyes
         self.LEFT_EYE = [362, 385, 387, 263, 373, 380]
         self.RIGHT_EYE = [33, 160, 158, 133, 153, 144]
+        self.LEFT_EYEBROW = [46, 53, 52, 65, 55, 70, 63, 105, 66, 107]
+        self.RIGHT_EYEBROW = [276, 283, 282, 295, 285, 300, 293, 334, 296, 336]
 
         # Load PyTorch Model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -89,31 +90,43 @@ class FaceAnalyzer:
                 return {"error": "Invalid image data"}
 
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            brightness = float(np.mean(gray_frame))
             results = self.face_mesh.process(rgb_frame)
 
             if not results.multi_face_landmarks:
-                return {"detected": False, "fatigue_level": 0, "emotion": "Unknown"}
+                signal_quality = "low_light" if brightness < 40.0 else "no_face"
+                return {
+                    "detected": False,
+                    "fatigue_level": 0,
+                    "emotion": "Unknown",
+                    "risk_score": 0,
+                    "signal_quality": signal_quality,
+                }
 
             landmarks = results.multi_face_landmarks[0].landmark
             h, w, _ = frame.shape
             
-            # 1. Calculate EAR (Fatigue)
             points = np.array([[int(l.x * w), int(l.y * h)] for l in landmarks])
             left_ear = self._calculate_ear(points, self.LEFT_EYE)
             right_ear = self._calculate_ear(points, self.RIGHT_EYE)
             avg_ear = (left_ear + right_ear) / 2.0
 
             fatigue_score = 0
-            if avg_ear < 0.20:
-                fatigue_score = 90
-            elif avg_ear < 0.25:
-                fatigue_score = 50
+            eyelid_state = "open"
+            if avg_ear < 0.18:
+                fatigue_score = 95
+                eyelid_state = "closed"
+            elif avg_ear < 0.24:
+                fatigue_score = 60
+                eyelid_state = "partially_closed"
             else:
                 fatigue_score = 10
+                eyelid_state = "open"
 
-            # 2. Predict Emotion (Pain/Distress)
             emotion = "Unknown"
             emotion_risk = 0
+            brow_tension = 20
             
             if self.model_loaded:
                 # Get bounding box
@@ -152,27 +165,59 @@ class FaceAnalyzer:
                         elif emotion == "Surprise":
                             emotion_risk = 30
 
-            # Final Risk Score (Max of Fatigue or Emotion)
-            final_risk = max(fatigue_score, emotion_risk)
+            left_eye_center = points[self.LEFT_EYE].mean(axis=0)
+            right_eye_center = points[self.RIGHT_EYE].mean(axis=0)
+            left_brow_center = points[self.LEFT_EYEBROW].mean(axis=0)
+            right_brow_center = points[self.RIGHT_EYEBROW].mean(axis=0)
+            dy_left = (left_eye_center[1] - left_brow_center[1]) / float(h)
+            dy_right = (right_eye_center[1] - right_brow_center[1]) / float(h)
+            brow_gap = max(0.0, (dy_left + dy_right) / 2.0)
+            if brow_gap < 0.035:
+                brow_tension = 90
+            elif brow_gap < 0.05:
+                brow_tension = 60
+            else:
+                brow_tension = 20
+
+            final_risk = max(fatigue_score, emotion_risk, brow_tension)
+
+            signal_quality = "good"
+            face_width = x_max - x_min
+            face_height = y_max - y_min
+            if face_width < 0.3 * w or face_height < 0.3 * h:
+                signal_quality = "too_far"
+            elif brightness < 40.0:
+                signal_quality = "low_light"
 
             return {
                 "detected": True,
                 "ear": float(avg_ear),
                 "fatigue_level": fatigue_score,
                 "emotion": emotion,
-                "risk_score": final_risk
+                "risk_score": final_risk,
+                "signal_quality": signal_quality,
+                "eyelid_state": eyelid_state,
+                "brow_tension": float(brow_tension),
             }
             
-        except Exception as e:
-            return {"error": str(e)}
+        except Exception:
+            return {
+                "detected": False,
+                "fatigue_level": 0,
+                "emotion": "Unknown",
+                "risk_score": 0,
+                "signal_quality": "error",
+            }
 
 # Singleton instance
 face_analyzer = FaceAnalyzer()
 
 def analyze_face(image_or_video_bytes):
-    # First, try to interpret the bytes as a single image frame
     result = face_analyzer.analyze_frame(image_or_video_bytes)
-    if isinstance(result, dict) and result.get("error") == "Invalid image data":
+    if isinstance(result, dict) and (
+        result.get("error") == "Invalid image data"
+        or (not result.get("detected") and result.get("signal_quality") in (None, "no_face"))
+    ):
         tmp_path = None
         try:
             with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
@@ -186,6 +231,7 @@ def analyze_face(image_or_video_bytes):
                     "fatigue_level": 0,
                     "emotion": "Unknown",
                     "risk_score": 0,
+                    "signal_quality": "no_video",
                 }
 
             frame_results = []
@@ -207,25 +253,62 @@ def analyze_face(image_or_video_bytes):
             cap.release()
 
             if not frame_results:
+                if frames_checked > 0:
+                    return {
+                        "detected": True,
+                        "fatigue_level": 10,
+                        "emotion": "Unknown",
+                        "risk_score": 10,
+                        "signal_quality": "no_face",
+                        "eyelid_state": "unknown",
+                        "brow_tension": 20.0,
+                    }
                 return {
                     "detected": False,
                     "fatigue_level": 0,
                     "emotion": "Unknown",
                     "risk_score": 0,
+                    "signal_quality": "no_face",
+                    "eyelid_state": "unknown",
+                    "brow_tension": 20.0,
                 }
 
             avg_fatigue = sum(r.get("fatigue_level", 0) for r in frame_results) / len(frame_results)
             max_risk = max(r.get("risk_score", 0) for r in frame_results)
             emotion = frame_results[0].get("emotion", "Unknown")
+            eyelid_states = [r.get("eyelid_state") for r in frame_results if r.get("eyelid_state")]
+            brow_values = [float(r.get("brow_tension", 0.0)) for r in frame_results]
+            brow_avg = sum(brow_values) / len(brow_values) if brow_values else 20.0
+            eyelid_state = "unknown"
+            if eyelid_states:
+                counts = {}
+                for s in eyelid_states:
+                    counts[s] = counts.get(s, 0) + 1
+                eyelid_state = max(counts.items(), key=lambda x: x[1])[0]
+            qualities = [r.get("signal_quality") for r in frame_results if r.get("signal_quality")]
+            signal_quality = "good"
+            if "low_light" in qualities:
+                signal_quality = "low_light"
+            elif "too_far" in qualities:
+                signal_quality = "too_far"
 
             return {
                 "detected": True,
                 "fatigue_level": round(avg_fatigue),
                 "emotion": emotion,
                 "risk_score": max_risk,
+                "signal_quality": signal_quality,
+                "eyelid_state": eyelid_state,
+                "brow_tension": float(brow_avg),
             }
-        except Exception as e:
-            return {"error": str(e), "fatigue_level": 0, "emotion": "Unknown", "risk_score": 0}
+        except Exception:
+            return {
+                "detected": False,
+                "fatigue_level": 0,
+                "emotion": "Unknown",
+                "risk_score": 0,
+                "signal_quality": "error",
+            }
         finally:
             if tmp_path and os.path.exists(tmp_path):
                 try:

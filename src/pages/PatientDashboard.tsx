@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -9,12 +9,12 @@ import { VideoRecorder } from "@/components/patient/VideoRecorder";
 import { AudioRecorder } from "@/components/patient/AudioRecorder";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, Camera, Mic, CheckCircle2, AlertTriangle, Loader2, ArrowLeft, ArrowRight, ShieldCheck, HeartPulse, BrainCircuit, Stethoscope, Bell, Pill, CalendarDays } from "lucide-react";
+import { Activity, Camera, Mic, CheckCircle2, AlertTriangle, Loader2, ArrowLeft, ArrowRight, ShieldCheck, HeartPulse, BrainCircuit, Stethoscope, Bell, Pill, CalendarDays, PhoneCall } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Navbar } from "@/components/Navbar";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { useApiQuery } from "@/hooks/useApiQuery";
+import { useApiQuery, API_BASE } from "@/hooks/useApiQuery";
 
 type AnalysisRecord = {
   mongo_id?: string;
@@ -74,12 +74,31 @@ export default function PatientDashboard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<any | null>(demoResult);
   const [lastVitals, setLastVitals] = useState<VitalsData | null>(null);
+  const [dischargeSnippet, setDischargeSnippet] = useState<{ title: string; line: string } | null>(null);
   const { toast } = useToast();
 
   const { data: history, isLoading: historyLoading } = useApiQuery<AnalysisRecord[]>(
     ["patient-analyses"],
     "/analyses?limit=6"
   );
+
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const stored = window.localStorage.getItem("vitalynDischargeSnippet_P001");
+        if (stored) {
+          const parsed = JSON.parse(stored) as { title?: string; line?: string };
+          if (parsed && (parsed.title || parsed.line)) {
+            setDischargeSnippet({
+              title: parsed.title ?? "Discharge instructions",
+              line: parsed.line ?? "",
+            });
+          }
+        }
+      }
+    } catch {
+    }
+  }, []);
 
   const form = useForm<VitalsData>({
     resolver: zodResolver(formSchema),
@@ -126,8 +145,7 @@ export default function PatientDashboard() {
         formData.append("voice_sample", audioBlob, "voice.webm");
       }
 
-      // Call the backend API
-      const response = await fetch("/api/analyze/multimodal", {
+      const response = await fetch(`${API_BASE}/analyze/multimodal`, {
         method: "POST",
         body: formData,
       });
@@ -155,7 +173,6 @@ export default function PatientDashboard() {
     }
   };
 
-  const triage = result?.triage || {};
   const data = result?.data || {};
   const vitalsRisk = data.vitals_risk || {};
   const faceAnalysis = data.face_fatigue_index || {};
@@ -164,6 +181,24 @@ export default function PatientDashboard() {
     data.overall_risk_score ??
     vitalsRisk.risk_score ??
     0;
+  const triage = result?.triage || {};
+
+  const vitalsSnapshot = lastVitals ?? form.getValues();
+  const tempDisplay =
+    typeof vitalsSnapshot.temp === "number" && !Number.isNaN(vitalsSnapshot.temp)
+      ? vitalsSnapshot.temp.toFixed(1)
+      : "--";
+  const eyelidState = faceAnalysis.eyelid_state as string | undefined;
+  const browTension =
+    typeof faceAnalysis.brow_tension === "number" ? faceAnalysis.brow_tension as number : undefined;
+  const hasRenalComorbidity = true;
+  const vitalsConcerningForP001 =
+    hasRenalComorbidity &&
+    (vitalsSnapshot.heartRate >= 90 ||
+      vitalsSnapshot.systolic >= 140 ||
+      vitalsSnapshot.diastolic >= 90 ||
+      vitalsSnapshot.temp >= 38 ||
+      vitalsSnapshot.spo2 <= 94);
 
   let riskLabel = "Low";
   if (overallRiskScore >= 85) {
@@ -176,6 +211,8 @@ export default function PatientDashboard() {
     triage.time_to_risk ||
     (riskLabel === "High" ? "15 min" : riskLabel === "Moderate" ? "45 min" : "4 hrs");
 
+  const showHighRiskDoctorActions = triage.urgency === "high" || riskLabel === "High";
+
   const insights: { label: string; text: string; muted?: boolean }[] = [];
 
   if (vitalsRisk.error) {
@@ -185,7 +222,12 @@ export default function PatientDashboard() {
       muted: true,
     });
   } else if (typeof vitalsRisk.risk_score === "number") {
-    if (vitalsRisk.risk_score < 30) {
+    if (vitalsConcerningForP001) {
+      insights.push({
+        label: "Vitals",
+        text: "For your kidneys and diabetes, these readings are more concerning than for a typical patient. Let your care team know if you feel unwell or if numbers drift further from your usual range.",
+      });
+    } else if (vitalsRisk.risk_score < 30) {
       insights.push({
         label: "Vitals",
         text: "Vitals are within the expected range for this stage of recovery.",
@@ -210,24 +252,57 @@ export default function PatientDashboard() {
       muted: true,
     });
   } else if (faceAnalysis.detected) {
-    const emotionText = faceAnalysis.emotion ? ` Emotion detected: ${faceAnalysis.emotion}.` : "";
+    const emotionText = faceAnalysis.emotion ? ` You currently look ${faceAnalysis.emotion.toLowerCase()} on camera.` : "";
+    let eyeNote = "";
+    if (eyelidState === "closed") {
+      eyeNote = " Your eyes look mostly closed on camera, which can mean you are extremely tired or not fully awake for the check.";
+    } else if (eyelidState === "partially_closed") {
+      eyeNote = " Your eyelids look heavy, which can happen when you are exhausted or unwell.";
+    }
+    let browNote = "";
+    if (typeof browTension === "number" && browTension >= 70) {
+      browNote = " Your eyebrows also look pulled together, which often happens when someone is in pain or distress.";
+    }
     if (faceAnalysis.fatigue_level >= 80) {
       insights.push({
         label: "Face",
-        text: `Facial analysis shows marked fatigue or distress.${emotionText}`,
+        text: `Your face scan shows heavy eye tiredness and possible distress.${emotionText}${eyeNote}${browNote} This can happen after surgery or poor sleep, so pay attention to how you feel and use this together with your vitals and your doctor's advice.`,
       });
     } else if (faceAnalysis.fatigue_level >= 40) {
       insights.push({
         label: "Face",
-        text: `Facial analysis shows mild to moderate fatigue.${emotionText}`,
+        text: `Your face scan shows some signs of tiredness but not severe exhaustion.${emotionText}${eyeNote}${browNote} Keep following your plan, rest well, and repeat a scan if you feel your energy dropping further.`,
       });
     } else {
       insights.push({
         label: "Face",
-        text: `Facial analysis shows eyes open and alert.${emotionText}`,
+        text: `Your face scan shows eyes open and alert with no strong fatigue markers.${emotionText}${eyeNote}${browNote} This is reassuring, but always combine it with how you feel and your doctor's guidance.`,
+      });
+    }
+  } else {
+    const quality = faceAnalysis.signal_quality as string | undefined;
+    if (quality === "low_light") {
+      insights.push({
+        label: "Face",
+        text: "Face scan could not see you clearly because the lighting was too low. Try again in a brighter room or facing a window; right now the system is relying mainly on your vitals.",
+        muted: true,
+      });
+    } else if (quality === "too_far") {
+      insights.push({
+        label: "Face",
+        text: "Face scan could not clearly see your face because you were too far from the camera. Move closer so your head and shoulders fill most of the frame, then repeat the scan.",
+        muted: true,
+      });
+    } else {
+      insights.push({
+        label: "Face",
+        text: "Face scan could not clearly see your face. Try again with your face centered in the frame and good lighting; for now the system is relying mainly on your vitals.",
+        muted: true,
       });
     }
   }
+
+  const noSpeech = voiceAnalysis.no_speech === true;
 
   if (voiceAnalysis.error) {
     insights.push({
@@ -235,13 +310,19 @@ export default function PatientDashboard() {
       text: "Voice analysis is offline in this build; your recording is captured but not yet scored.",
       muted: true,
     });
+  } else if (noSpeech) {
+    insights.push({
+      label: "Voice",
+      text: "We could not clearly hear any speech in your recording. Try speaking out loud for a few seconds in your normal or pained voice so we can analyze how you sound.",
+      muted: true,
+    });
   } else if (typeof voiceAnalysis.stress_score === "number") {
-    if (voiceAnalysis.stress_score >= 70) {
+    if (voiceAnalysis.stress_score >= 60) {
       insights.push({
         label: "Voice",
         text: "Voice analysis indicates elevated stress in speech patterns.",
       });
-    } else if (voiceAnalysis.stress_score >= 35) {
+    } else if (voiceAnalysis.stress_score >= 25) {
       insights.push({
         label: "Voice",
         text: "Voice analysis shows mild stress markers; continue monitoring.",
@@ -262,7 +343,6 @@ export default function PatientDashboard() {
     });
   }
 
-  const vitalsSnapshot = lastVitals ?? form.getValues();
   const medications = [
     { name: "Apixaban", dose: "2.5 mg", schedule: "Twice daily" },
     { name: "Paracetamol", dose: "500 mg", schedule: "If pain > 3/10" },
@@ -296,8 +376,8 @@ export default function PatientDashboard() {
                 <HeartPulse className="h-5 w-5" />
               </div>
               <div>
-                <p className="font-semibold tracking-wide uppercase text-[11px]">Demo patient</p>
-                <p className="text-[11px] text-[#f1ede2]/80">Post-op day 3 • Appendectomy</p>
+                <p className="font-semibold tracking-wide uppercase text-[11px]">Patient P001</p>
+                <p className="text-[11px] text-[#f1ede2]/80">Post-op day 3 • CKD on dialysis • Diabetes</p>
               </div>
             </div>
           </div>
@@ -339,7 +419,7 @@ export default function PatientDashboard() {
                   </div>
                   <div className="rounded-2xl bg-[#f1ede2] px-4 py-3">
                     <p className="text-[11px] font-semibold tracking-[0.16em] uppercase text-[#7a7e9a]">Temperature</p>
-                    <p className="mt-1 text-2xl font-black text-[#111322]">{vitalsSnapshot.temp.toFixed(1)} °C</p>
+                    <p className="mt-1 text-2xl font-black text-[#111322]">{tempDisplay} °C</p>
                     <p className="mt-1 text-xs text-[#4b4f70]">Fever if ≥ 38.0</p>
                   </div>
                 </div>
@@ -356,16 +436,35 @@ export default function PatientDashboard() {
                     </div>
                   </div>
                   <div className="rounded-2xl border border-[#e1d8c7] bg-white px-4 py-4 flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#3a3e61]/10 text-[#3a3e61]">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#3a3e61]/10 text-[#3a3e9]">
                       <CalendarDays className="h-5 w-5" />
                     </div>
                     <div>
                       <p className="text-xs font-semibold tracking-[0.16em] uppercase text-[#7a7e9a]">Procedure</p>
                       <p className="text-sm font-semibold text-[#111322]">Laparoscopic appendectomy</p>
-                      <p className="text-xs text-[#4b4f70]">Post-op day 3 • Ward A3</p>
+                      <p className="text-xs text-[#4b4f70]">Post-op day 3 • CKD on dialysis • Diabetes</p>
                     </div>
                   </div>
                 </div>
+
+                {dischargeSnippet && (
+                  <div className="mt-4 rounded-2xl border border-[#e1d8c7] bg-white px-4 py-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ShieldCheck className="h-4 w-4 text-[#3a3e61]" />
+                      <p className="text-xs font-semibold tracking-[0.16em] uppercase text-[#7a7e9a]">
+                        Prescription changes and alerts
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold text-[#111322]">
+                      {dischargeSnippet.title}
+                    </p>
+                    {dischargeSnippet.line && (
+                      <p className="mt-1 text-xs text-[#4b4f70]">
+                        {dischargeSnippet.line}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="rounded-2xl border border-[#e1d8c7] bg-white px-4 py-4">
@@ -496,6 +595,35 @@ export default function PatientDashboard() {
                   </p>
                 </CardContent>
               </Card>
+              {showHighRiskDoctorActions && (
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    className="w-full h-10 text-xs font-semibold border-[#f97373]/70 text-[#111322] bg-[#fee2e2] hover:bg-[#fecaca] flex items-center justify-center gap-2 rounded-2xl"
+                    onClick={() => {
+                      toast({
+                        title: "Doctor notified",
+                        description: "Your assigned doctor has been notified about this high-risk check-in.",
+                      });
+                    }}
+                  >
+                    <Bell className="h-4 w-4" />
+                    Notify assigned doctor
+                  </Button>
+                  <Button
+                    className="w-full h-10 text-xs font-semibold bg-[#111322] text-[#fdfbf6] border border-[#e1d8c7] hover:bg-black flex items-center justify-center gap-2 rounded-2xl"
+                    onClick={() => {
+                      toast({
+                        title: "Call started",
+                        description: "In a real deployment this would start a call to your care team.",
+                      });
+                    }}
+                  >
+                    <PhoneCall className="h-4 w-4" />
+                    Call doctor now
+                  </Button>
+                </div>
+              )}
               <Button
                 className="w-full h-12 text-sm font-semibold bg-[#fdfbf6] text-[#111322] border border-[#e1d8c7] rounded-2xl shadow-lg shadow-black/20 hover:bg-[#f1ede2]"
                 onClick={() => setResult(null)}

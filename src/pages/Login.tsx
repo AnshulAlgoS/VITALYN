@@ -4,11 +4,10 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
+import { API_BASE } from "@/hooks/useApiQuery";
 import gsap from "gsap";
 
 type Role = "patient" | "doctor";
-
-const API_BASE = "/api";
 
 export default function Login() {
   const pageRef = useRef<HTMLDivElement | null>(null);

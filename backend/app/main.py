@@ -21,9 +21,9 @@ MONGODB_URI = os.getenv("MONGODB_URI")
 MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "vitalyn")
 
 mongo_client = MongoClient(MONGODB_URI) if MONGODB_URI else None
-mongo_db = mongo_client[MONGODB_DB_NAME] if mongo_client else None
-analyses_collection = mongo_db["analyses"] if mongo_db else None
-users_collection = mongo_db["users"] if mongo_db else None
+mongo_db = mongo_client[MONGODB_DB_NAME] if mongo_client is not None else None
+analyses_collection = mongo_db["analyses"] if mongo_db is not None else None
+users_collection = mongo_db["users"] if mongo_db is not None else None
 
 app = FastAPI(title="Vitalyn API", description="Multimodal Healthcare Intelligence Engine")
 
@@ -197,20 +197,45 @@ async def analyze_multimodal(
         results["clinical_analysis"] = {"error": "Reasoning agent unavailable"}
     
     patient_id = f"P{len(patients_db) + 1:03d}"
-    
-    # Determine urgency and TTR based on risk
-    if final_risk > 80:
+
+    vitals_block = results.get("vitals_risk") or {}
+    face_block = results.get("face_fatigue_index") or {}
+    voice_block = results.get("voice_stress_score") or {}
+
+    vitals_score = float(vitals_block.get("risk_score") or 0.0)
+    face_fatigue = float(face_block.get("fatigue_level") or 0.0)
+    voice_stress = float(voice_block.get("stress_score") or 0.0)
+
+    has_any_abnormal = (
+        vitals_score >= 30.0
+        or face_fatigue >= 40.0
+        or voice_stress >= 35.0
+    )
+
+    has_severe_any = (
+        vitals_score >= 70.0
+        or face_fatigue >= 80.0
+        or voice_stress >= 70.0
+    )
+
+    if final_risk >= 85 or has_severe_any:
         urgency = "high"
         ttr_level = "critical"
         time_to_risk = "15 min"
         time_minutes = 15
         condition = "Critical Decompensation"
-    elif final_risk > 50:
-        urgency = "medium" 
+    elif final_risk >= 60 or (has_any_abnormal and final_risk >= 40):
+        urgency = "medium"
         ttr_level = "watch"
         time_to_risk = "45 min"
         time_minutes = 45
         condition = "Observation Required"
+    elif has_any_abnormal or final_risk >= 30:
+        urgency = "medium"
+        ttr_level = "watch"
+        time_to_risk = "2 hours"
+        time_minutes = 120
+        condition = "Early Warning"
     else:
         urgency = "low"
         ttr_level = "safe"

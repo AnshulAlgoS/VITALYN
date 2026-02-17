@@ -57,8 +57,13 @@ def _compute_basic_stress(y, sr):
             },
             "pitch_avg": round(avg_pitch, 1),
         }
-    except Exception as e:
-        return {"error": str(e), "stress_score": 0}
+    except Exception:
+        return {
+            "stress_score": 0.0,
+            "risk_class": 0,
+            "probabilities": {"low": 1.0, "medium": 0.0, "high": 0.0},
+            "pitch_avg": 0.0,
+        }
 
 def analyze_voice(audio_bytes):
     """
@@ -70,7 +75,34 @@ def analyze_voice(audio_bytes):
             y, sr = librosa.load(audio_file, sr=None)
 
         if len(y) == 0:
-            return {"error": "Empty audio", "stress_score": 0}
+            return {
+                "stress_score": 0.0,
+                "risk_class": 0,
+                "probabilities": {"low": 1.0, "medium": 0.0, "high": 0.0},
+                "pitch_avg": 0.0,
+                "no_speech": True,
+            }
+
+        rms = librosa.feature.rms(y=y)[0]
+        energy = float(np.mean(rms))
+
+        f0, _, _ = librosa.pyin(
+            y,
+            fmin=librosa.note_to_hz("C2"),
+            fmax=librosa.note_to_hz("C7"),
+        )
+        f0_clean = f0[~np.isnan(f0)]
+        avg_pitch = float(np.mean(f0_clean)) if len(f0_clean) > 0 else 0.0
+        voiced_fraction = float(len(f0_clean)) / float(len(f0)) if len(f0) > 0 else 0.0
+
+        if energy < 0.008 and voiced_fraction < 0.05:
+            return {
+                "stress_score": 0.0,
+                "risk_class": 0,
+                "probabilities": {"low": 1.0, "medium": 0.0, "high": 0.0},
+                "pitch_avg": round(avg_pitch, 1),
+                "no_speech": True,
+            }
 
         features = extract_features(y, sr)
 
@@ -85,13 +117,6 @@ def analyze_voice(audio_bytes):
             else:
                 stress_score = 0
             stress_score = float(stress_score)
-            f0, _, _ = librosa.pyin(
-                y,
-                fmin=librosa.note_to_hz("C2"),
-                fmax=librosa.note_to_hz("C7"),
-            )
-            f0_clean = f0[~np.isnan(f0)]
-            avg_pitch = float(np.mean(f0_clean)) if len(f0_clean) > 0 else 0
             return {
                 "stress_score": round(stress_score, 1),
                 "risk_class": risk_class,
@@ -101,9 +126,18 @@ def analyze_voice(audio_bytes):
                     "high": float(probs[2]) if len(probs) > 2 else 0,
                 },
                 "pitch_avg": round(avg_pitch, 1),
+                "no_speech": False,
             }
 
-        return _compute_basic_stress(y, sr)
+        stress = _compute_basic_stress(y, sr)
+        stress["no_speech"] = False
+        return stress
 
     except Exception as e:
-        return {"error": str(e), "stress_score": 0}
+        print(f"Voice analysis error (fallback to neutral): {e}")
+        return {
+            "stress_score": 0.0,
+            "risk_class": 0,
+            "probabilities": {"low": 1.0, "medium": 0.0, "high": 0.0},
+            "pitch_avg": 0.0,
+        }

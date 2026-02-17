@@ -273,9 +273,9 @@ export default function OPDQueue() {
             <Button
               variant="outline"
               size="sm"
-              className="hidden sm:flex border-[#fdfbf6]/40 text-[#fdfbf6] hover:text-[#111322] hover:bg-[#fdfbf6]"
+              className="hidden sm:flex items-center gap-2 rounded-full border-[#fdfbf6]/40 bg-[#fdfbf6]/10 text-[#fdfbf6] hover:bg-[#fdfbf6] hover:text-[#111322] shadow-sm hover:shadow-md transition-colors"
             >
-               <Filter className="mr-2 h-4 w-4" /> Filter
+              <Filter className="mr-1 h-4 w-4" /> Filter
             </Button>
             <div className="flex items-center gap-2 bg-[#fdfbf6] px-3 py-1.5 rounded-full border border-[#111322]/20 shadow-sm shadow-black/20">
               <span className="relative flex h-2 w-2">

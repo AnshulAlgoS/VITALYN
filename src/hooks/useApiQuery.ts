@@ -1,10 +1,8 @@
 import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
 
-/**
- * Placeholder API fetcher — replace baseUrl with your FastAPI backend.
- * For now returns null after a simulated delay to show loading states.
- */
-const API_BASE = "/api"; // Replace with your FastAPI URL
+export const API_BASE =
+  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
+  "/api";
 
 async function apiFetch<T>(endpoint: string): Promise<T> {
   const res = await fetch(`${API_BASE}${endpoint}`);

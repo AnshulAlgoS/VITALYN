@@ -11,13 +11,13 @@ class MedicalReasoningAgent:
     """
     Real 'Ambient Provider Voice Agent' reasoning using NVIDIA NIM.
     Connects to NVIDIA NIMs:
-    - Reasoning: nvidia/llama-3.3-nemotron-super-49b-v1
+    - Reasoning: meta/llama-3.3-70b-instruct
     """
     
     def __init__(self):
         self.api_key = os.getenv("NVIDIA_API_KEY")
         self.base_url = "https://integrate.api.nvidia.com/v1"
-        self.model_name = "nvidia/llama-3.3-nemotron-super-49b-v1"
+        self.model_name = "meta/llama-3.3-70b-instruct"
         
         if self.api_key:
             self.client = OpenAI(
@@ -75,12 +75,12 @@ class MedicalReasoningAgent:
                     model=self.model_name,
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_message}
+                        {"role": "user", "content": user_message},
                     ],
-                    temperature=0.2, # Low temperature for clinical precision
-                    top_p=0.95,
+                    temperature=0.2,
+                    top_p=0.7,
                     max_tokens=1024,
-                    response_format={"type": "json_object"} # Force valid JSON
+                    response_format={"type": "json_object"},
                 )
                 
                 content = completion.choices[0].message.content

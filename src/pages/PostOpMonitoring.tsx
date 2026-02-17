@@ -81,13 +81,26 @@ export default function PostOpMonitoring() {
     ? patients.find((p) => p.id === initialId) ?? patients[0]
     : patients[0];
   const [selectedPatient, setSelectedPatient] = useState(initialPatient);
-  const [editorTitle, setEditorTitle] = useState("Rewrite discharge instructions");
-  const [editorLine, setEditorLine] = useState("Keep the risk framing tight but reassuring.");
+  const [editorTitle, setEditorTitle] = useState("Update today's prescription and alerts");
+  const [editorLine, setEditorLine] = useState("Summarise medication changes, monitoring plan, and when alerts should fire.");
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 800);
     return () => clearTimeout(timer);
   }, []);
+
+  const handleSaveSnippet = () => {
+    try {
+      const key = `vitalynDischargeSnippet_${selectedPatient.id}`;
+      const payload = { title: editorTitle, line: editorLine };
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(key, JSON.stringify(payload));
+      }
+    } catch {
+    }
+  };
+
+  const visiblePatients = initialId ? patients.filter((p) => p.id === initialPatient.id) : patients;
 
   const TrendIcon = ({ trend }: { trend: string }) => {
     if (trend === "improving") return (
@@ -114,21 +127,26 @@ export default function PostOpMonitoring() {
     <DashboardLayout>
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-3xl border border-white/15 bg-white/5 px-5 py-4 shadow-lg shadow-black/20 backdrop-blur-xl">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900">Post-Operative Monitoring</h2>
-            <p className="text-muted-foreground mt-1">Real-time recovery tracking and risk prediction</p>
+            <h2 className="text-sm sm:text-xs font-semibold tracking-[0.18em] text-[#f1ede2]/80 uppercase">
+              Post-Operative Monitoring
+            </h2>
+            <p className="mt-1 text-base sm:text-lg font-semibold text-[#fdfbf6]">
+              Real-time recovery tracking and risk prediction
+            </p>
           </div>
           <div className="flex items-center gap-3">
-             <div className="px-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm text-sm font-medium text-slate-600">
-                <span className="text-slate-400 mr-2">Last Update:</span> Just now
-             </div>
+            <div className="px-4 py-2 bg-[#fdfbf6]/10 border border-[#fdfbf6]/30 rounded-2xl shadow-sm text-xs sm:text-sm font-medium text-[#fdfbf6]">
+              <span className="text-[#f1ede2]/80 mr-2 uppercase tracking-[0.16em] text-[10px]">Last Update</span>
+              <span className="font-semibold">Just now</span>
+            </div>
           </div>
         </div>
 
         {/* Patient Selection Grid */}
         <div className="grid gap-4 md:grid-cols-3">
-          {patients.map((p) => (
+          {visiblePatients.map((p) => (
             <div
               key={p.id}
               className={cn(
@@ -350,27 +368,28 @@ export default function PostOpMonitoring() {
             <div className="grid gap-8 md:grid-cols-2 items-center">
               <div className="space-y-4">
                 <p className="text-[11px] font-semibold tracking-[0.25em] text-slate-400 uppercase">
-                  Text Edit · Discharge Sheet
+                  Advice · Medications · Alerts
                 </p>
                 <h3 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-900">
-                  Refine the copy,
-                  <br />
-                  keep the risk story.
+                  Refine advice, medications, and alerts while keeping the risk story clear.
                 </h3>
                 <p className="text-sm md:text-base text-slate-500 leading-relaxed">
-                  Use this panel to experiment with how you explain {`"`}time to
-                  risk{`"`} in discharge instructions. Changes here only affect this
-                  preview, perfect for playing with wording during the demo.
+                  Use this panel to practice how you explain {`"`}time to risk{`"`} and to
+                  fine-tune the medication plan and notification rules. Changes here affect
+                  only this preview, so doctors can safely adjust wording and orders during
+                  the demo.
                 </p>
                 <Button
                   variant="outline"
                   className="rounded-full px-5 h-10 border-slate-300 text-slate-800 hover:bg-slate-900 hover:text-white transition-colors"
                   onClick={() => {
-                    setEditorTitle("Rewrite discharge instructions");
-                    setEditorLine("Keep the risk framing tight but reassuring.");
+                    setEditorTitle("Clinical advice, medications, and alerts reviewed by your doctor");
+                    setEditorLine(
+                      "Your medicines, monitoring schedule, and alert thresholds have been confirmed. Follow this plan and seek urgent help if new warning signs appear sooner than expected."
+                    );
                   }}
                 >
-                  Reset copy
+                  Reset to standard advice and medication sheet
                 </Button>
               </div>
 
@@ -379,7 +398,7 @@ export default function PostOpMonitoring() {
                   <div className="w-full h-full flex items-center justify-center">
                     <div className="mx-6 md:mx-10">
                       <p className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase mb-2">
-                        Discharge snippet
+                        Prescription & notifications summary
                       </p>
                       <p className="text-lg md:text-xl font-semibold text-slate-900">
                         {editorTitle}
@@ -419,6 +438,13 @@ export default function PostOpMonitoring() {
                         onChange={(e) => setEditorLine(e.target.value)}
                       />
                     </div>
+                    <Button
+                      size="sm"
+                      className="mt-2 w-full bg-slate-900 text-white hover:bg-slate-800"
+                      onClick={handleSaveSnippet}
+                    >
+                      Save to patient dashboard
+                    </Button>
                   </div>
                 </div>
               </div>
