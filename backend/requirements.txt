@@ -10,3 +10,5 @@ python-multipart
 joblib
 soundfile
 torch
+kagglehub
+python-dotenv

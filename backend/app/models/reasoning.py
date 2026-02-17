@@ -1,7 +1,13 @@
 import json
 import os
 from datetime import datetime
-from dotenv import load_dotenv
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args, **kwargs):  # type: ignore[no-redef]
+        return None
+
 from openai import OpenAI
 
 # Load environment variables (API Key)

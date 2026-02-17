@@ -26,6 +26,7 @@ import {
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useSearchParams } from "react-router-dom";
+import { useApiQuery } from "@/hooks/useApiQuery";
 
 const recoveryData = [
   { day: "Day 1", risk: 82, vitals: 45 },
@@ -37,11 +38,28 @@ const recoveryData = [
   { day: "Day 7", risk: 18, vitals: 90 },
 ];
 
+interface AnalysisEntry {
+  id: string;
+  risk?: number;
+  timeToRisk?: string;
+  timeMinutes?: number;
+  urgency?: string;
+  ttrLevel?: string;
+  condition?: string;
+  waitTime?: string;
+  timestamp?: string;
+  vitals?: {
+    heart_rate?: number;
+    spo2?: number;
+    temperature?: number;
+  };
+}
+
 const patients = [
   {
     id: "P001",
-    name: "Patient Alpha",
-    surgery: "Appendectomy",
+    name: "Patient P001",
+    surgery: "Laparoscopic appendectomy • CKD on dialysis • Type 2 diabetes",
     trend: "improving" as const,
     currentRisk: 18,
     ttr: "8 hours",
@@ -77,17 +95,48 @@ export default function PostOpMonitoring() {
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const initialId = searchParams.get("patient");
-  const initialPatient = initialId
-    ? patients.find((p) => p.id === initialId) ?? patients[0]
-    : patients[0];
-  const [selectedPatient, setSelectedPatient] = useState(initialPatient);
+  const [selectedPatientId, setSelectedPatientId] = useState<string>(initialId ?? patients[0].id);
   const [editorTitle, setEditorTitle] = useState("Update today's prescription and alerts");
   const [editorLine, setEditorLine] = useState("Summarise medication changes, monitoring plan, and when alerts should fire.");
+  const { data: analyses } = useApiQuery<AnalysisEntry[]>(["analyses"], "/analyses?limit=20");
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 800);
     return () => clearTimeout(timer);
   }, []);
+
+  const latestP001 = (analyses ?? []).find((entry) => entry.id === "P001");
+
+  const computedPatients = patients.map((patient) => {
+    if (!latestP001 || patient.id !== "P001") {
+      return patient;
+    }
+
+    const backendHr = latestP001.vitals?.heart_rate;
+    const backendSpo2 = latestP001.vitals?.spo2;
+    const backendTemp = latestP001.vitals?.temperature;
+
+    const currentRisk = typeof latestP001.risk === "number" ? Math.round(latestP001.risk) : patient.currentRisk;
+    const ttr = latestP001.timeToRisk ?? patient.ttr;
+    const ttrLevel = (latestP001.ttrLevel as typeof patient.ttrLevel) ?? patient.ttrLevel;
+    const urgency = (latestP001.urgency as typeof patient.urgency) ?? patient.urgency;
+
+    return {
+      ...patient,
+      currentRisk,
+      ttr,
+      ttrLevel,
+      urgency,
+      vitals: {
+        hr: backendHr ?? patient.vitals.hr,
+        spo2: backendSpo2 ?? patient.vitals.spo2,
+        temp: backendTemp ?? patient.vitals.temp,
+      },
+    };
+  });
+
+  const selectedPatient =
+    computedPatients.find((patient) => patient.id === selectedPatientId) ?? computedPatients[0];
 
   const handleSaveSnippet = () => {
     try {
@@ -96,11 +145,14 @@ export default function PostOpMonitoring() {
       if (typeof window !== "undefined") {
         window.localStorage.setItem(key, JSON.stringify(payload));
       }
-    } catch {
+    } catch (error) {
+      console.error(error);
     }
   };
 
-  const visiblePatients = initialId ? patients.filter((p) => p.id === initialPatient.id) : patients;
+  const visiblePatients = initialId
+    ? computedPatients.filter((patient) => patient.id === initialId)
+    : computedPatients;
 
   const TrendIcon = ({ trend }: { trend: string }) => {
     if (trend === "improving") return (
@@ -155,7 +207,7 @@ export default function PostOpMonitoring() {
                   ? "bg-white border-blue-500/50 shadow-xl shadow-blue-500/10 ring-1 ring-blue-500/20"
                   : "bg-white border-slate-200 hover:border-blue-300 hover:shadow-lg hover:shadow-slate-200/50"
               )}
-              onClick={() => setSelectedPatient(p)}
+              onClick={() => setSelectedPatientId(p.id)}
             >
               {selectedPatient.id === p.id && (
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-transparent pointer-events-none" />
@@ -358,6 +410,104 @@ export default function PostOpMonitoring() {
                   </div>
                 </CardContent>
               </Card>
+            )}
+
+            {/* P001 chronic disease and treatment program overview */}
+            {selectedPatient.id === "P001" && (
+              <>
+                <Card className="border-slate-200/60 shadow-xl shadow-slate-200/40 bg-white/90 backdrop-blur-xl rounded-2xl overflow-hidden">
+                  <CardHeader className="pb-3 bg-slate-50/60 border-b border-slate-100/70">
+                    <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2 uppercase tracking-wide">
+                      <HeartPulse className="h-4 w-4 text-emerald-600" />
+                      CKD on dialysis · Clinic-administered program
+                    </CardTitle>
+                    <CardDescription className="text-xs text-slate-500">
+                      End-stage kidney disease on maintenance haemodialysis, coordinated entirely by the dialysis clinic administration.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4 space-y-3 text-xs text-slate-600">
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      <p>
+                        <span className="font-semibold text-slate-800">Dialysis schedule:</span>{" "}
+                        Mon / Wed / Fri, 07:00–10:00, day-care unit. Bookings, machine allocation,
+                        and staffing are handled by the clinic administration.
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      <p>
+                        <span className="font-semibold text-slate-800">Responsible team:</span>{" "}
+                        Nephrologist + dialysis nursing + clinic coordinator. All anticoagulation,
+                        fluid removal targets, and access care orders are captured in the clinic system.
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      <p>
+                        <span className="font-semibold text-slate-800">Access and precautions:</span>{" "}
+                        Right forearm AV fistula – no IV lines, BP cuff, or blood draws on this arm. Post-op
+                        fluid orders are reconciled with the dialysis prescription each session.
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      <p>
+                        <span className="font-semibold text-slate-800">Administrative notes:</span>{" "}
+                        Transport coordination, dialysis billing, and appointment reminders are generated by the
+                        clinic administration dashboard; patient does not need to manage bookings manually.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-slate-200/60 shadow-xl shadow-slate-200/40 bg-white/90 backdrop-blur-xl rounded-2xl overflow-hidden">
+                  <CardHeader className="pb-3 bg-slate-50/60 border-b border-slate-100/70">
+                    <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2 uppercase tracking-wide">
+                      <Thermometer className="h-4 w-4 text-amber-500" />
+                      Diabetes and post-op medication plan
+                    </CardTitle>
+                    <CardDescription className="text-xs text-slate-500">
+                      Type 2 diabetes on insulin with all prescriptions and monitoring managed through the clinic.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4 space-y-3 text-xs text-slate-600">
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      <p>
+                        <span className="font-semibold text-slate-800">Glycaemic plan:</span>{" "}
+                        Basal insulin at night plus correctional insulin around meals, with dose adjustments
+                        entered centrally by the clinic doctor and synced to this dashboard.
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      <p>
+                        <span className="font-semibold text-slate-800">Monitoring:</span>{" "}
+                        Capillary glucose before breakfast and dinner while inpatient. Alerts fire to the
+                        clinic team if readings are &gt; 250 mg/dL or &lt; 80 mg/dL.
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      <p>
+                        <span className="font-semibold text-slate-800">Medication governance:</span>{" "}
+                        All diabetes, dialysis, and post-op prescriptions are reconciled in a single
+                        medication list managed by clinic administration, including anticoagulation, antibiotics,
+                        insulin, and pain control.
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      <p>
+                        <span className="font-semibold text-slate-800">Patient-facing summary:</span>{" "}
+                        The patient sees a simplified schedule (dialysis days, insulin times, wound check visits),
+                        while this dashboard keeps the full treatment plan and responsible clinic teams.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
             )}
           </div>
         </div>

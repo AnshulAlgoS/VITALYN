@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/table";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpRight, Clock, Users, Zap, TrendingUp, AlertTriangle, Filter, MoreHorizontal } from "lucide-react";
+import { ArrowUpRight, Clock, Users, Zap, TrendingUp, AlertTriangle, Filter, MoreHorizontal, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -25,6 +25,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { useApiQuery } from "@/hooks/useApiQuery";
 
 type UrgencyLevel = "low" | "medium" | "high";
 type TTRLevel = "safe" | "watch" | "critical";
@@ -38,6 +39,14 @@ interface Patient {
   ttrLevel: TTRLevel;
   condition: string;
   waitTime: string;
+}
+
+interface Appointment {
+  id: string;
+  patient_id: string;
+  appointment_time: string;
+  created_at?: string;
+  status?: string;
 }
 
 const doctors = [
@@ -81,12 +90,16 @@ function QueueTable({
   assignments,
   onAssign,
   onOpenProfile,
+  onReorder,
+  reorderable = false,
 }: {
   data: Patient[];
   loading: boolean;
   assignments: Record<string, (typeof doctors)[number]["id"] | undefined>;
   onAssign: (patientId: string, doctorId: (typeof doctors)[number]["id"]) => void;
   onOpenProfile: (patientId: string) => void;
+  onReorder?: (fromIndex: number, toIndex: number) => void;
+  reorderable?: boolean;
 }) {
   return (
     <div className="rounded-3xl border border-[#e1d8c7] overflow-hidden bg-[#fdfbf6]/95 backdrop-blur-xl shadow-xl shadow-black/15 ring-1 ring-[#e1d8c7]/80">
@@ -115,7 +128,39 @@ function QueueTable({
                 const assignedId = assignments[p.id];
                 const assigned = assignedId ? doctorById[assignedId] : undefined;
                 return (
-                <TableRow key={p.id} className="group border-[#f1ede2] hover:bg-[#fffaf2] transition-all duration-300 cursor-pointer">
+                <TableRow
+                  key={p.id}
+                  className="group border-[#f1ede2] hover:bg-[#fffaf2] transition-all duration-300 cursor-pointer"
+                  draggable={reorderable}
+                  onDragStart={
+                    reorderable && onReorder
+                      ? (event) => {
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", String(idx));
+                        }
+                      : undefined
+                  }
+                  onDragOver={
+                    reorderable && onReorder
+                      ? (event) => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                        }
+                      : undefined
+                  }
+                  onDrop={
+                    reorderable && onReorder
+                      ? (event) => {
+                          event.preventDefault();
+                          const fromIndexString = event.dataTransfer.getData("text/plain");
+                          const fromIndex = Number(fromIndexString);
+                          if (!Number.isNaN(fromIndex) && fromIndex !== idx) {
+                            onReorder(fromIndex, idx);
+                          }
+                        }
+                      : undefined
+                  }
+                >
                   <TableCell className="font-mono text-xs text-[#9ca3c7] pl-6">{(idx + 1).toString().padStart(2, '0')}</TableCell>
                   <TableCell
                     className="cursor-pointer"
@@ -224,6 +269,11 @@ function QueueTable({
 export default function OPDQueue() {
   const [loading, setLoading] = useState(true);
   const [assignments, setAssignments] = useState<Record<string, (typeof doctors)[number]["id"] | undefined>>({});
+  const [aiQueue, setAiQueue] = useState<Patient[]>(() => patients);
+  const { data: appointments, isLoading: appointmentsLoading } = useApiQuery<Appointment[]>(
+    ["appointments"],
+    "/appointments"
+  );
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -242,7 +292,66 @@ export default function OPDQueue() {
     navigate(`/post-op?patient=${encodeURIComponent(patientId)}`);
   };
 
+  const handleReorderAiQueue = (fromIndex: number, toIndex: number) => {
+    setAiQueue((previous) => {
+      const updated = [...previous];
+      if (
+        fromIndex < 0 ||
+        fromIndex >= updated.length ||
+        toIndex < 0 ||
+        toIndex >= updated.length
+      ) {
+        return previous;
+      }
+      const [moved] = updated.splice(fromIndex, 1);
+      updated.splice(toIndex, 0, moved);
+      return updated;
+    });
+  };
+
   const primaryDoctor = doctors[0];
+
+  const appointmentQueue: Patient[] = (appointments ?? [])
+    .slice()
+    .sort((a, b) => {
+      const ta = new Date(a.appointment_time).getTime();
+      const tb = new Date(b.appointment_time).getTime();
+      if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+      if (Number.isNaN(ta)) return 1;
+      if (Number.isNaN(tb)) return -1;
+      return ta - tb;
+    })
+    .map((appointment) => {
+      const base = patients.find((p) => p.id === appointment.patient_id);
+      const appointmentDate = new Date(appointment.appointment_time);
+      const now = new Date();
+      const diffMs = appointmentDate.getTime() - now.getTime();
+      let waitLabel = "Now";
+
+      if (!Number.isNaN(diffMs)) {
+        const diffMinutes = Math.round(diffMs / 60000);
+        if (diffMinutes > 60) {
+          const hours = Math.floor(diffMinutes / 60);
+          const minutes = diffMinutes % 60;
+          waitLabel = minutes ? `${hours}h ${minutes}m` : `${hours}h`;
+        } else if (diffMinutes > 0) {
+          waitLabel = `${diffMinutes}m`;
+        } else {
+          waitLabel = "Due";
+        }
+      }
+
+      return {
+        id: appointment.patient_id,
+        risk: base?.risk ?? 0,
+        timeToRisk: base?.timeToRisk ?? "",
+        timeMinutes: base?.timeMinutes ?? 0,
+        urgency: base?.urgency ?? "low",
+        ttrLevel: base?.ttrLevel ?? "safe",
+        condition: base?.condition ?? "Booked appointment",
+        waitTime: waitLabel,
+      };
+    });
 
   return (
     <DashboardLayout>
@@ -381,6 +490,13 @@ export default function OPDQueue() {
                 <Clock className="h-4 w-4 mr-2 text-[#fdfbf6]/80" />
                 Standard FIFO
               </TabsTrigger>
+                <TabsTrigger
+                  value="appointments"
+                  className="rounded-lg data-[state=active]:bg-[#fdfbf6] data-[state=active]:text-[#111322] px-4 text-xs font-semibold tracking-wide text-[#fdfbf6]/90 transition-all"
+                >
+                  <CalendarDays className="h-4 w-4 mr-2 text-[#fdfbf6]/80" />
+                  Booked slots
+                </TabsTrigger>
             </TabsList>
             <div className="hidden sm:flex text-xs font-medium text-[#f1ede2]/85 bg-[#ffffff]/10 px-3 py-1.5 rounded-full border border-[#fdfbf6]/30 backdrop-blur">
                <span className="w-2 h-2 bg-emerald-500 rounded-full mr-2 animate-pulse" />
@@ -409,11 +525,13 @@ export default function OPDQueue() {
               </CardHeader>
               <CardContent className="p-0">
                 <QueueTable
-                  data={patients}
+                  data={aiQueue}
                   loading={loading}
                   assignments={assignments}
                   onAssign={handleAssignDoctor}
                   onOpenProfile={handleOpenProfile}
+                  reorderable
+                  onReorder={handleReorderAiQueue}
                 />
               </CardContent>
             </Card>
@@ -430,6 +548,28 @@ export default function OPDQueue() {
                 <QueueTable
                   data={originalOrder}
                   loading={loading}
+                  assignments={assignments}
+                  onAssign={handleAssignDoctor}
+                  onOpenProfile={handleOpenProfile}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="appointments" className="mt-0 focus-visible:outline-none">
+            <Card className="border-0 shadow-none bg-transparent">
+              <CardHeader className="px-0 pt-0 pb-4">
+                <CardTitle className="text-sm sm:text-base font-semibold text-[#fdfbf6] tracking-[0.16em] uppercase">
+                  Appointments from patient app
+                </CardTitle>
+                <CardDescription className="text-xs text-[#f1ede2]/80">
+                  Slots booked by patients, ordered by chosen appointment time.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <QueueTable
+                  data={appointmentQueue}
+                  loading={loading || appointmentsLoading}
                   assignments={assignments}
                   onAssign={handleAssignDoctor}
                   onOpenProfile={handleOpenProfile}

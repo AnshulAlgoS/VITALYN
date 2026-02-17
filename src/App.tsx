@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import OPDQueue from "./pages/OPDQueue";
 import PostOpMonitoring from "./pages/PostOpMonitoring";
 import Alerts from "./pages/Alerts";
+import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import PatientDashboard from "./pages/PatientDashboard";
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/opd-queue" element={<OPDQueue />} />
           <Route path="/post-op" element={<PostOpMonitoring />} />
           <Route path="/alerts" element={<Alerts />} />
+          <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/patient" element={<PatientDashboard />} />
           <Route path="*" element={<NotFound />} />

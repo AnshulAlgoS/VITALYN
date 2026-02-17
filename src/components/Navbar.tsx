@@ -117,6 +117,12 @@ export function Navbar() {
             >
               Alerts
             </Link>
+            <Link
+              to="/reports"
+              className="text-[#3a3e61]/80 hover:text-[#111322] transition-colors uppercase tracking-[0.18em]"
+            >
+              Reports
+            </Link>
           </div>
 
           <div ref={actionsRef} className="flex items-center gap-3">

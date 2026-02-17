@@ -6,7 +6,11 @@ import uvicorn
 import json
 import os
 from datetime import datetime
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args, **kwargs):  # type: ignore[no-redef]
+        return None
 from pymongo import MongoClient
 
 from app.models.vitals import analyze_vitals
@@ -36,6 +40,7 @@ app.add_middleware(
 )
 
 patients_db = []
+appointments_db = []
 
 
 class VitalsInput(BaseModel):
@@ -46,6 +51,11 @@ class VitalsInput(BaseModel):
     temperature: float
     pain_level: int
     fatigue_level: int
+
+
+class AppointmentRequest(BaseModel):
+    patient_id: str
+    appointment_time: str
 
 
 class LoginRequest(BaseModel):
@@ -108,6 +118,28 @@ def get_patients():
     # Sort by risk (descending)
     sorted_patients = sorted(patients_db, key=lambda x: x['risk'], reverse=True)
     return sorted_patients
+
+
+@app.get("/appointments")
+def list_appointments():
+    sorted_appointments = sorted(
+        appointments_db,
+        key=lambda x: x.get("appointment_time") or "",
+    )
+    return sorted_appointments
+
+
+@app.post("/appointments")
+def create_appointment(payload: AppointmentRequest):
+    appointment = {
+        "id": f"A{len(appointments_db) + 1:03d}",
+        "patient_id": payload.patient_id,
+        "appointment_time": payload.appointment_time,
+        "created_at": datetime.now().isoformat(),
+        "status": "scheduled",
+    }
+    appointments_db.append(appointment)
+    return appointment
 
 
 @app.get("/analyses")
@@ -254,6 +286,7 @@ async def analyze_multimodal(
         "waitTime": "Just now",
         "timestamp": datetime.now().isoformat(),
         "details": results,
+        "vitals": vitals_dict,
     }
 
     if analyses_collection is not None:

@@ -9,12 +9,13 @@ import { VideoRecorder } from "@/components/patient/VideoRecorder";
 import { AudioRecorder } from "@/components/patient/AudioRecorder";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, Camera, Mic, CheckCircle2, AlertTriangle, Loader2, ArrowLeft, ArrowRight, ShieldCheck, HeartPulse, BrainCircuit, Stethoscope, Bell, Pill, CalendarDays, PhoneCall } from "lucide-react";
+import { Activity, Camera, Mic, CheckCircle2, AlertTriangle, Loader2, ArrowLeft, ArrowRight, ShieldCheck, HeartPulse, BrainCircuit, Stethoscope, Bell, Pill, CalendarDays, PhoneCall, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Navbar } from "@/components/Navbar";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useApiQuery, API_BASE } from "@/hooks/useApiQuery";
+import { Input } from "@/components/ui/input";
 
 type AnalysisRecord = {
   mongo_id?: string;
@@ -29,6 +30,50 @@ type AnalysisRecord = {
   timestamp: string;
 };
 
+type VitalsRisk = {
+  risk_score?: number;
+  error?: string;
+};
+
+type FaceAnalysis = {
+  detected?: boolean;
+  eyelid_state?: string;
+  brow_tension?: number;
+  emotion?: string;
+  fatigue_level?: number;
+  signal_quality?: string;
+  error?: string;
+};
+
+type VoiceAnalysis = {
+  stress_score?: number;
+  no_speech?: boolean;
+  stutter?: boolean;
+  error?: string;
+};
+
+type TriageSummary = {
+  urgency?: string;
+  ttr_level?: string;
+  time_to_risk?: string;
+  time_minutes?: number;
+  condition?: string;
+  risk_score?: number;
+};
+
+type MultimodalResult = {
+  status: string;
+  data: {
+    vitals_risk?: VitalsRisk;
+    face_fatigue_index?: FaceAnalysis;
+    voice_stress_score?: VoiceAnalysis;
+    overall_risk_score?: number;
+  };
+  recommendation?: string;
+  patient_id?: string;
+  triage?: TriageSummary;
+};
+
 const formSchema = z.object({
   heartRate: z.coerce.number().min(30).max(220),
   systolic: z.coerce.number().min(50).max(250),
@@ -39,7 +84,7 @@ const formSchema = z.object({
   fatigue: z.number().min(0).max(10),
 });
 
-const demoResult = {
+const demoResult: MultimodalResult = {
   status: "analyzed",
   data: {
     vitals_risk: {
@@ -68,13 +113,16 @@ const demoResult = {
 };
 
 export default function PatientDashboard() {
+  const patientId = "P001";
   const [activeTab, setActiveTab] = useState("vitals");
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<any | null>(demoResult);
+  const [result, setResult] = useState<MultimodalResult | null>(demoResult);
   const [lastVitals, setLastVitals] = useState<VitalsData | null>(null);
   const [dischargeSnippet, setDischargeSnippet] = useState<{ title: string; line: string } | null>(null);
+  const [appointmentTime, setAppointmentTime] = useState("");
+  const [isBookingAppointment, setIsBookingAppointment] = useState(false);
   const { toast } = useToast();
 
   const { data: history, isLoading: historyLoading } = useApiQuery<AnalysisRecord[]>(
@@ -96,7 +144,8 @@ export default function PatientDashboard() {
           }
         }
       }
-    } catch {
+    } catch (error) {
+      console.error(error);
     }
   }, []);
 
@@ -170,6 +219,50 @@ export default function PatientDashboard() {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleBookAppointment = async () => {
+    if (!appointmentTime) {
+      toast({
+        title: "Select a time",
+        description: "Please choose an appointment time before booking.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsBookingAppointment(true);
+    try {
+      const response = await fetch(`${API_BASE}/appointments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          patient_id: patientId,
+          appointment_time: appointmentTime,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Booking failed");
+      }
+
+      toast({
+        title: "Appointment booked",
+        description: "Your appointment has been added to the OPD queue.",
+      });
+      setAppointmentTime("");
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Booking failed",
+        description: "Could not book appointment. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBookingAppointment(false);
     }
   };
 
@@ -303,6 +396,7 @@ export default function PatientDashboard() {
   }
 
   const noSpeech = voiceAnalysis.no_speech === true;
+  const stutter = voiceAnalysis.stutter === true;
 
   if (voiceAnalysis.error) {
     insights.push({
@@ -321,6 +415,11 @@ export default function PatientDashboard() {
       insights.push({
         label: "Voice",
         text: "Voice analysis indicates elevated stress in speech patterns.",
+      });
+    } else if (stutter) {
+      insights.push({
+        label: "Voice",
+        text: "Your speech in this clip sounds broken or stuttered, which can happen when you are anxious, breathless, or in discomfort. If this was not intentional, repeat the voice check speaking slowly in one continuous sentence.",
       });
     } else if (voiceAnalysis.stress_score >= 25) {
       insights.push({
@@ -593,6 +692,47 @@ export default function PatientDashboard() {
                   <p className="mt-3 text-[11px] text-[#f1ede2]/70">
                     This summary is for guidance only. Your doctor always makes the final call.
                   </p>
+                </CardContent>
+              </Card>
+              <Card className="border-0 shadow-xl shadow-black/20 bg-[#fdfbf6]/95 text-[#111322] rounded-3xl">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold tracking-[0.2em] uppercase text-[#3a3e61] flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4" />
+                    Book appointment
+                  </CardTitle>
+                  <CardDescription className="text-xs text-[#4b4f70]">
+                    Choose a time and add it to the OPD queue for your doctor.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 text-xs">
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-semibold tracking-[0.16em] uppercase text-[#7a7e9a]">
+                      Appointment time
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="datetime-local"
+                        value={appointmentTime}
+                        onChange={(event) => setAppointmentTime(event.target.value)}
+                        className="bg-white border-[#e1d8c7] text-xs"
+                      />
+                    </div>
+                    <p className="text-[11px] text-[#7a7e9a]">
+                      Your doctor will see this slot in the OPD CareQueue.
+                    </p>
+                  </div>
+                  <Button
+                    className="w-full h-10 text-xs font-semibold bg-[#111322] text-[#fdfbf6] border border-[#e1d8c7] hover:bg-black flex items-center justify-center gap-2 rounded-2xl"
+                    onClick={handleBookAppointment}
+                    disabled={isBookingAppointment}
+                  >
+                    {isBookingAppointment ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Clock className="h-4 w-4" />
+                    )}
+                    {isBookingAppointment ? "Booking..." : "Book appointment"}
+                  </Button>
                 </CardContent>
               </Card>
               {showHighRiskDoctorActions && (

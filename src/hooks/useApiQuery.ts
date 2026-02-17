@@ -1,8 +1,17 @@
 import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
 
-export const API_BASE =
-  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
-  "/api";
+let apiBase = "/api";
+
+if (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_BASE_URL) {
+  apiBase = import.meta.env.VITE_API_BASE_URL;
+} else if (typeof window !== "undefined") {
+  const origin = window.location.origin;
+  if (origin.includes("vitalyn-tan.vercel.app")) {
+    apiBase = "https://vitalyn.onrender.com";
+  }
+}
+
+export const API_BASE = apiBase;
 
 async function apiFetch<T>(endpoint: string): Promise<T> {
   const res = await fetch(`${API_BASE}${endpoint}`);
