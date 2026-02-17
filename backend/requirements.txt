@@ -13,3 +13,4 @@ torch
 kagglehub
 python-dotenv
 pymongo
+openai
